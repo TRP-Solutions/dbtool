@@ -1,0 +1,158 @@
+* {
+	margin: 0px;
+	padding: 0px;
+}
+body {
+	margin: 20px 40px;
+	font-family: sans-serif;
+}
+.flex {
+	align-items: flex-start;
+}
+.flex, label, nav {
+	display: flex;
+}
+form, .flex.col {
+	flex-direction: column;
+}
+.flex.col > *:not(:first-child){
+	margin-top: 10px;
+}
+.flex.row {
+	flex-direction: row;
+}
+.flex.row > *:not(:first-child){
+	margin-left: 10px;
+}
+nav a {
+	text-decoration: none;
+	color: #00A;
+	border-bottom: 3px solid #00A;
+}
+nav a:hover {
+	color: #44F;
+	border-bottom: 3px solid #44F;
+}
+nav a:not(:first-child) {
+	padding-left: 1em;
+}
+nav a:not(:last-child) {
+	padding-right: 1em;
+}
+label {
+	justify-content: space-between;
+}
+form > * {
+	margin: 2px 0px;
+}
+form .section {
+	margin-top: 0.5rem;
+}
+form .section b:first-child {
+	margin-left: 1rem;
+}
+input, select {
+	margin-left: 10px;
+}
+input[type="submit"] {
+	margin: 10px 0px;
+}
+.message {
+	margin: 10px 0px;
+	padding: 5px;
+	border: 2px solid #ccc;
+	order: -1;
+}
+.message.success {
+	border: 2px solid green;
+}
+.message.error {
+	border: 2px solid red;
+}
+.header {
+	font-weight: bold;
+}
+ul {
+	border: 1px solid #aaa;
+	list-style: none;
+}
+li {
+	padding: 2px 5px;
+}
+li:not(:first-child), :not(ul) > li {
+	border-top: 1px solid #aaa;
+}
+li > table, li > ul, li > div {
+	margin: 3px 0px;
+}
+li.header {
+	background: #ddd;
+	font-size: 1.2em;
+}
+li > div.header {
+	margin: -2px -5px 5px;
+	padding: 5px 5px 3px;
+	background: #eee;
+	border-bottom: 1px solid #ddd;
+}
+table {
+	border-left: 1px solid #aaa;
+	border-right: 1px solid #aaa;
+	border-spacing: 0px;
+}
+th {
+	padding: 5px;
+}
+td {
+	padding: 3px 5px;
+}
+tr:first-child th,
+tr:nth-child(2) td {
+	padding-top: 2px;
+	border-top: 1px solid #aaa;
+}
+tr:last-child td {
+	padding-bottom: 2px;
+	border-bottom: 1px solid #aaa;
+}
+td:not(:first-child),
+th:not(:first-child) {
+	border-left: 1px solid #aaa;
+}
+tr td{
+	background: #f4f4f4;
+}
+tr:nth-child(2n) td{
+	background: #e4e4e4;
+}
+tr.remove td {
+	background: #fee;
+}
+tr.remove:nth-child(2n) td {
+	background: #fdd;
+}
+tr.add td {
+	background: #eef8ee;
+}
+tr.add:nth-child(2n) td {
+	background: #d8eed8;
+}
+tr.diff td {
+	background: #eef;
+}
+tr.diff:nth-child(2n) td {
+	background: #ddf;
+}
+tr:hover td,
+tr.diff:hover td,
+tr.add:hover td,
+tr.remove:hover td{
+	background: #fff;
+	padding-top: 2px;
+	padding-bottom: 2px;
+	border-top: 1px solid black;
+	border-bottom: 1px solid black;
+}
+.tab:not(.selected) {
+	display: none;
+}
