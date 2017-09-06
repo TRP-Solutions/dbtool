@@ -9,7 +9,14 @@ if(in_array('h', $arguments['options']) || in_array('help', $arguments['options'
 
 define('VERBOSE',in_array('v',$arguments['options']) || in_array('verbose', $arguments['options']));
 define('EXECUTE',in_array('e',$arguments['options']) || in_array('execute', $arguments['options']));
+define('FORCE',in_array('f',$arguments['options']) || in_array('force', $arguments['options']));
+define('NO_ALTER',in_array('no-alter', $arguments['options']));
+define('NO_CREATE',in_array('no-create', $arguments['options']));
+define('NO_DROP',in_array('no-drop', $arguments['options']));
+define('TEST_RUN',in_array('test', $arguments['options']));
 session_start();
+
+if(TEST_RUN) echo "Options:\n".json_encode($arguments['options'])."\n";
 
 if(isset($arguments['configfile'])){
 	$inputpath = getcwd().'/'.$arguments['configfile'];
@@ -27,9 +34,16 @@ if(isset($arguments['configfile'])){
 	if(VERBOSE) echo "Action: [$core[action]]\n";
 	if($core['action']=='diff') show_diff($core['result']);
 	elseif($core['action']=='permission') show_permission($core['result']);
-
-	if(EXECUTE){
-		$lines = $core['obj']->execute();
+	
+	if(TEST_RUN) echo "[Test run, skipping execution]\n";
+	elseif(EXECUTE && (FORCE || ask_continue())){
+		$options = 0;
+		if($core['action']=='diff'){
+			if(!NO_ALTER) $options |= CoreDiff::ALTER;
+			if(!NO_CREATE) $options |= CoreDiff::CREATE;
+			if(!NO_DROP) $options |= CoreDiff::DROP;
+		}
+		$lines = $core['obj']->execute($options);
 		if(VERBOSE){
 			echo "Execution:\n";
 			if($lines){
@@ -37,13 +51,12 @@ if(isset($arguments['configfile'])){
 				if(empty($messages)){
 					echo "$lines SQL lines executed without errors.\n";
 				} else {
-					echo "The following errors was found:\n";
+					echo "The following errors was encountered:\n";
 					foreach($messages as $msg) echo "$msg[text]\n";
 				}
 			} else {
 				echo "No SQL lines were executed.\n";
 			}
-			
 		}
 	}
 	exit;
@@ -55,12 +68,20 @@ function help(){
 echo <<<'HELP'
 Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
 
-Options:
+General Options:
   -h, --help             Displays this help text.
 
   -a, --action ACTION    Specify the action used, supported actions are 'diff' and 'permission'.
-  -e, --execute          Runs the generated SQL to align the database with the provided schema.
-  -v, --verbose          Writes verbose output while executing.
+  -e, --execute          Run the generated SQL to align the database with the provided schema.
+  -f, --force            Combined with -e: Run any SQL without asking first.
+  -v, --verbose          Write extra descriptive output.
+
+  --test                 Run everything as usual, but without executing any SQL.
+
+Diff Specific Options:
+  --no-alter        An executed diff will not include ALTER statements.
+  --no-create       An executed diff will not include CREATE statements.
+  --no-drop         An executed diff will not include DROP statements.
 
 
 HELP;
@@ -82,9 +103,6 @@ function show_permission($result){
 			echo implode("\n\t\t",$file['sql'])."\n";
 		}
 	}
-	if(VERBOSE){
-		
-	}
 }
 
 function show_diff($result){
@@ -94,43 +112,63 @@ function show_diff($result){
 	if(!empty($result['drop_queries'])){
 		$differences_found = true;
 		$count = count($result['tables_in_database_only']);
-		echo "Found $count table(s) in database only:\n\t";
-		echo implode(', ',$result['tables_in_database_only'])."\n";
-		if(VERBOSE){
-			echo "The following drop queries will remove them:\n\t";
-			echo implode("\n\t",$result['drop_queries'])."\n";
+		if(NO_DROP){
+			if(VERBOSE) echo "Ignoring $count table(s) in database.\n";
+		} else {
+			echo "Found $count table(s) in database only:\n\t";
+			echo implode(', ',$result['tables_in_database_only'])."\n";
+			if(VERBOSE){
+				echo "The following drop queries will remove them:\n\t";
+				echo implode("\n\t",$result['drop_queries'])."\n";
+			}
+			echo "\n";
 		}
-		echo "\n";
 	}
 	
 	if(!empty($result['create_queries'])){
 		$differences_found = true;
 		$count = count($result['tables_in_file_only']);
-		echo "Found $count table(s) in file only:\n\t";
-		echo implode(', ',$result['tables_in_file_only'])."\n";
-		if(VERBOSE){
-			echo "The following create queries will add them:\n";
-			echo implode("\n",array_map('indent_text', $result['create_queries']))."\n";
+		if(NO_CREATE){
+			if(VERBOSE) echo "Ignoring $count table(s) in file.\n";
+		} else {
+			echo "Found $count table(s) in file only:\n\t";
+			echo implode(', ',$result['tables_in_file_only'])."\n";
+			if(VERBOSE){
+				echo "The following create queries will add them:\n";
+				echo implode("\n",array_map('indent_text', $result['create_queries']))."\n";
+			}
+			echo "\n";
 		}
-		echo "\n";
 	}
 
 	if(!empty($result['alter_queries'])){
 		$differences_found = true;
-		$array = show_nonempty_keys("table(s) with column differences", $result['intersection_columns']);
-		$array = show_nonempty_keys("table(s) with key differences", $result['intersection_keys']);
-		$array = show_nonempty_keys("table(s) with option differences", $result['intersection_options']);
-		if(VERBOSE){
-			echo "The following alter queries will align them:\n";
-			foreach($result['alter_queries'] as $table => $queries){
-				echo $table.":\n";
-				echo implode("\n",array_map('indent_text', $queries))."\n";
+		if(NO_ALTER){
+			if(VERBOSE){
+				$columns = array_keys(array_filter($result['intersection_columns'],function($e){return !empty($e);}));
+				$keys = array_keys(array_filter($result['intersection_keys'],function($e){return !empty($e);}));
+				$options = array_keys(array_filter($result['intersection_options'],function($e){return !empty($e);}));
+				$count = count(array_unique($columns+$keys+$options));
+				echo "Ignoring differences in $count table(s).\n";
+			}
+			
+		} else {
+			$array = show_nonempty_keys("table(s) with column differences", $result['intersection_columns']);
+			$array = show_nonempty_keys("table(s) with key differences", $result['intersection_keys']);
+			$array = show_nonempty_keys("table(s) with option differences", $result['intersection_options']);
+			if(VERBOSE){
+				echo "The following alter queries will align them:\n";
+				foreach($result['alter_queries'] as $table => $queries){
+					echo $table.":\n";
+					echo implode("\n",array_map('indent_text', $queries))."\n";
+				}
 			}
 		}
 	}
 
 	if(!$differences_found){
 		echo "No differences found.\n";
+		exit;
 	}
 }
 
@@ -154,6 +192,25 @@ function show_error($result){
 		return true;
 	}
 	return false;
+}
+
+function ask_continue($msg = null, $default_yes = true){
+	if(isset($msg)) echo $msg;
+	else echo "Do you want to continue?";
+	if($default_yes){
+		echo " [Y/n]:";
+	} else {
+		echo " [y/N]:";
+	}
+	$line = trim(fgets(STDIN));
+	if(empty($line)) return $default_yes;
+	$line = strtolower($line);
+	if($line=='y') return true;
+	elseif($line=='n') return false;
+	else {
+		echo "Please answer 'y' or 'n'.\n";
+		return ask_continue($msg, $default_yes);
+	}
 }
 
 function indent_text($text){

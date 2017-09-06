@@ -164,11 +164,11 @@ SQL;
 				}
 			}
 			foreach($order['t2'] as $pos => $colname){
-				while(isset($skipped[$order['t1'][$pos+$offset]])){
+				while(isset($order['t1'][$pos+$offset]) && isset($skipped[$order['t1'][$pos+$offset]])){
 					unset($skipped[$order['t1'][$pos+$offset]]);
 					$offset++;
 				}
-				if($order['t2'][$pos] != $order['t1'][$pos+$offset]){
+				if(!isset($order['t1'][$pos+$offset]) || $order['t2'][$pos] != $order['t1'][$pos+$offset]){
 					$p = array_search($colname, $order['t1']);
 					if($p !== false){
 						$rows[$colname]['t1']['after'] = $order['t1'][$p-1].' ';

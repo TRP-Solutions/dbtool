@@ -93,57 +93,6 @@ abstract class Core {
 	public function get_result(){
 		return $this->result;
 	}
-/*
-	private static function permission_action(){
-		DB::login();
-		$schemas = self::get_schemalist();
-		$vars = Config::get('variables');
-		$permission = new PermissionDiff($vars['PRIM'],$vars['SECO'],[]);
-		return $permission->diff_files($schemas);
-	}
-
-	private static function permission_execute(){
-		DB::login();
-		$schemas = self::get_schemalist();
-		$vars = Config::get('variables');
-		$permission = new PermissionDiff($vars['PRIM'],$vars['SECO'],[]);
-		$result = $permission->diff_files($schemas);
-		foreach($result['files'] as $file){
-			foreach($file['sql'] as $sql){
-				DB::sql($sql);
-			}
-		}
-		return $result;
-	}
-
-	private static function diff_action(){
-		DB::login();
-		$schema = self::get_schemalist()[0];
-		$dbname = Config::get('variables')['PRIM'];
-		if($schema && $dbname){
-			$file = new SQLFile($schema);
-			$diff = new Diff();
-			$result = $diff->diff($dbname, $file);
-			return $result;
-		}
-	}
-
-	private static function diff_execute($alter = true, $create = true, $drop = true){
-		DB::login();
-		$schema = self::get_schemalist()[0];
-		$dbname = Config::get('variables')['PRIM'];
-		if($schema && $dbname){
-			$file = new SQLFile($schema);
-			$diff = new Diff();
-			$result = $diff->diff($dbname, $file);
-			DB::sql("USE $dbname");
-			if($alter) foreach($result['alter_queries'] as $sql) DB::sql($sql);
-			if($create) foreach($result['create_queries'] as $sql) DB::sql($sql);
-			if($drop) foreach($result['drop_queries'] as $sql) DB::sql($sql);
-			return $result;
-		}
-	}
-	*/
 
 	private static function get_schemalist(){
 		$schema = Config::get('schema');
