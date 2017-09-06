@@ -79,9 +79,9 @@ General Options:
   --test                 Run everything as usual, but without executing any SQL.
 
 Diff Specific Options:
-  --no-alter        An executed diff will not include ALTER statements.
-  --no-create       An executed diff will not include CREATE statements.
-  --no-drop         An executed diff will not include DROP statements.
+  --no-alter             An executed diff will not include ALTER statements.
+  --no-create            An executed diff will not include CREATE statements.
+  --no-drop              An executed diff will not include DROP statements.
 
 
 HELP;
