@@ -2,6 +2,11 @@
 
 
 ## CLI
+Useful bash alias:
+```
+alias dbtool='php /path/to/dbtool/cli/dbtool.php'
+```
+
 Help text from the command line interface CLI/dbtool.php:
 ```
 Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
