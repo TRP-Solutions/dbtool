@@ -2,11 +2,6 @@
 
 
 ## CLI
-Useful bash alias:
-```
-alias dbtool='php /path/to/dbtool/cli/dbtool.php'
-```
-
 Help text from the command line interface CLI/dbtool.php:
 ```
 Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
@@ -25,4 +20,8 @@ Diff Specific Options:
   --no-alter             An executed diff will not include ALTER statements.
   --no-create            An executed diff will not include CREATE statements.
   --no-drop              An executed diff will not include DROP statements.
+```
+Useful bash alias:
+```
+alias dbtool='php /path/to/dbtool/cli/dbtool.php'
 ```
