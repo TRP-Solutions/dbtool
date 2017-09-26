@@ -31,7 +31,8 @@ $confdiv = $body->el('div');
 if(isset($_GET['config'])){
 	$path = realpath(__DIR__.'/../../'.$_GET['config']);
 	$basedir = dirname($path);
-	$result = Core::run($path);
+	Core::load($path);
+	$result = Core::run();
 
 	if(isset($_GET['execute'])){
 		$result['obj']->execute();

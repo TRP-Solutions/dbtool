@@ -59,13 +59,20 @@ class CorePermission extends Core {
 
 abstract class Core {
 	private static $configdir = '';
-	public static function run($path, $action = null){
+	public static function load($path){
 		$path = realpath($path);
 		if($path){
 			self::$configdir = dirname($path);
 			$json = json_decode(file_get_contents($path),true);
 			Config::load($json);
 		}
+		if(empty(Config::get('db_username'))) return 'missing_username';
+		if(empty(Config::get('db_password'))) return 'missing_password';
+		DB::login();
+		if(!DB::$isloggedin) return 'wrong_credentials';
+	}
+
+	public static function run($action = null){
 		if(empty($action)) $action = Config::get('action');
 		switch($action){
 			case 'diff':

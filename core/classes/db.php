@@ -90,8 +90,9 @@ class DB {
 			} else {
 				$mysqli = new mysqli('localhost', $username, $password);
 			}
+			
 			if($mysqli->connect_error){
-				Core::msg('error', "Failed to connect to MySQL: {$mysqli->connect_error}");
+				//Core::msg('error', "Failed to connect to MySQL: {$mysqli->connect_error}");
 			} else {
 				self::$isloggedin = true;
 				$_SESSION['db_u'] = $username;

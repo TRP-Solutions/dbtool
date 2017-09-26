@@ -92,8 +92,7 @@ SQL;
 
 	public function diff($dbname, $sqlfile){
 		if(!DB::$isloggedin){
-			View::msg('error', 'Please log in first');
-			return;
+			return ['errno'=>3,'error'=>"Not connected to database."];
 		}
 		$flatten_array = function($carry, $item) use (&$flatten_array) {
 			if(is_array($item)){
