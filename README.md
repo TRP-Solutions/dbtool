@@ -21,3 +21,7 @@ Diff Specific Options:
   --no-create            An executed diff will not include CREATE statements.
   --no-drop              An executed diff will not include DROP statements.
 ```
+Useful bash alias:
+```
+alias dbtool='php /path/to/dbtool/cli/dbtool.php'
+```
