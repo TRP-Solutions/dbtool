@@ -12,8 +12,8 @@ General Options:
   -a, --action ACTION        Specify the action used, supported actions are 'diff' and 'permission'.
   -e, --execute              Run the generated SQL to align the database with the provided schema.
   -f, --force                Combined with -e: Run any SQL without asking first.
-  -v, --verbose              Write extra descriptive output.
   -u, --username USERNAME    Use the given username when connecting to the database.
+  -v, --verbose              Write extra descriptive output.
   -p, --password             Request password before connecting to the database.
 
   --test                     Run everything as usual, but without executing any SQL.
