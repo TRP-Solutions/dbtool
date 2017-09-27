@@ -283,8 +283,8 @@ function parse_argv(){
 
 function read_arg($name, &$arguments, &$index){
 	global $argv;
-	if(!isset($argv[$index+1]) || $argv[$index+1][0]=='-') fail("Error: missing parameter for flag [$arg]", 2);
-	$arguments['parameters']['action'] = $argv[$index+1];
+	if(!isset($argv[$index+1]) || $argv[$index+1][0]=='-') fail("Error: missing parameter for flag [$argv[$index]]", 2);
+	$arguments['parameters'][$name] = $argv[$index+1];
 	$index++;
 }
 
