@@ -72,6 +72,13 @@ abstract class Core {
 		if(!DB::$isloggedin) return 'wrong_credentials';
 	}
 
+	public static function load_json($json, $configdir = '.'){
+		self::$configdir = realpath($configdir);
+		Config::load($json);
+		DB::login();
+		if(!DB::$isloggedin) return 'wrong_credentials';
+	}
+
 	public static function run($action = null){
 		if(empty($action)) $action = Config::get('action');
 		switch($action){
