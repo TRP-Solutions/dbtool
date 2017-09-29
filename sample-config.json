@@ -1,6 +1,6 @@
 {
-	"db_username": "username",
-	"db_password": "XXX",
+	"user": "username",
+	"password": "XXX",
 	"schema": "path/to/schema/file.sql",
 	"variables": {"VAR": "value"},
 	"action": "diff"
