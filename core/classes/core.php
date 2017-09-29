@@ -12,7 +12,7 @@ class CoreDiff extends Core {
 	private $dbname;
 	protected function __construct(){
 		parent::__construct();
-		$this->dbname = Config::get('variables')['PRIM'];
+		$this->dbname = Config::get('database');
 		if(isset($this->schemas[0]) && $this->dbname){
 			$file = new SQLFile($this->schemas[0]);
 			$diff = new Diff();
@@ -21,7 +21,6 @@ class CoreDiff extends Core {
 	}
 
 	public function execute($options = 0b111){
-		DB::sql("USE $this->dbname");
 		$lines = 0;
 		if($options & self::ALTER){
 			$lines += count($this->result['alter_queries']);
@@ -59,17 +58,14 @@ class CorePermission extends Core {
 
 abstract class Core {
 	private static $configdir = '';
-	public static function load($path){
+	public static function load_file($path){
 		$path = realpath($path);
 		if($path){
-			self::$configdir = dirname($path);
 			$json = json_decode(file_get_contents($path),true);
-			Config::load($json);
+			if(json_last_error()===JSON_ERROR_NONE) return [$json,null];
+			return [null,json_last_error_msg()];
 		}
-		if(empty(Config::get('db_username'))) return 'missing_username';
-		if(empty(Config::get('db_password'))) return 'missing_password';
-		DB::login();
-		if(!DB::$isloggedin) return 'wrong_credentials';
+		return [null,'invalid_path'];
 	}
 
 	public static function load_json($json, $configdir = '.'){

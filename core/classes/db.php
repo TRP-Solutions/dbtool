@@ -64,13 +64,6 @@ class DB {
 		return $result;
 	}
 
-	public static function get_username(){
-		if(isset($_SESSION['db_u'])){
-			return $_SESSION['db_u'];
-		}
-		return false;
-	}
-
 	public static function get_messages(){
 		return self::$messages;
 	}
@@ -82,21 +75,19 @@ class DB {
 	private $mysqli;
 
 	private function __construct(){
-		$username = Config::get('db_username');
-		$password = Config::get('db_password');
+		$host = Config::get('host');
+		if(!isset($host)) $host = 'localhost';
+		$username = Config::get('user');
+		$password = Config::get('password');
+		$database = Config::get('database');
+		if(!isset($database)) $database = '';
 		if(isset($username) && isset($password)){
-			if(defined('DBHOST')){
-				$mysqli = new mysqli(DBHOST, $username, $password);
-			} else {
-				$mysqli = new mysqli('localhost', $username, $password);
-			}
+			$mysqli = new mysqli('localhost', $username, $password, $database);
 			
 			if($mysqli->connect_error){
 				//Core::msg('error', "Failed to connect to MySQL: {$mysqli->connect_error}");
 			} else {
 				self::$isloggedin = true;
-				$_SESSION['db_u'] = $username;
-				$_SESSION['db_p'] = $password;
 			}
 			$this->mysqli = $mysqli;
 		}

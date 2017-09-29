@@ -8,13 +8,13 @@ define('OPTION_TAKES_VALUE',2);
 $long_options = [
 	'help'=>OPTION_VOID,
 	'action'=>OPTION_TAKES_VALUE,
-	'database'=>OPTION_TAKES_VALUE,
 	'execute'=>OPTION_VOID,
 	'force'=>OPTION_VOID,
 	'password'=>OPTION_VOID | OPTION_TAKES_VALUE,
 	'user'=>OPTION_TAKES_VALUE,
 	'verbose'=>OPTION_VOID,
 	'test'=>OPTION_VOID,
+	'database'=>OPTION_TAKES_VALUE,
 	'no-alter'=>OPTION_VOID,
 	'no-create'=>OPTION_VOID,
 	'no-drop'=>OPTION_VOID
@@ -22,7 +22,6 @@ $long_options = [
 $short_options = [
 	'h'=>'help',
 	'a'=>'action',
-	'd'=>'database',
 	'e'=>'execute',
 	'f'=>'force',
 	'p'=>'password',
@@ -59,8 +58,8 @@ foreach($long_options as $name => $type){
 if($config['action'] != 'diff' && $config['action'] != 'permission') help(); //help exits
 define('VERBOSE',$config['verbose']);
 
-$config['db_username'] = $config['user']!==false ? $config['user'] : get_current_user();
-$config['db_password'] = $config['password'] === true ? ask_for_password() : $config['password'] || '';
+$config['user'] = $config['user']!==false ? $config['user'] : get_current_user();
+if($config['password'] === true) $config['password'] = ask_for_password();
 
 switch(Core::load_json($config, $configdir)){
 	case 'wrong_credentials': fail("Connection Error: Username or password incorrect", 2); break;
@@ -106,21 +105,22 @@ echo <<<'HELP'
 Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
 
 General Options:
-  -h, --help                           Displays this help text.
+  -h, --help                       Displays this help text.
 
-  -aACTION, --action=ACTION            Specify the action used, supported actions are 'diff' and 'permission'.
-  -e, --execute                        Run the generated SQL to align the database with the provided schema.
-  -f, --force                          Combined with -e: Run any SQL without asking first.
-  -pPASSWORD, --password[=PASSWORD]    Use given password or if not set, request password before connecting to the database.
-  -uUSERNAME, --user=USERNAME          Use the given username when connecting to the database.
-  -v, --verbose                        Write extra descriptive output.
+  -aVALUE, --action=VALUE          Specify the action used, supported actions are 'diff' and 'permission'.
+  -e, --execute                    Run the generated SQL to align the database with the provided schema.
+  -f, --force                      Combined with -e: Run any SQL without asking first.
+  -p[VALUE], --password[=VALUE]    Use given password or if not set, request password before connecting to the database.
+  -uVALUE, --user=VALUE            Use the given username when connecting to the database.
+  -v, --verbose                    Write extra descriptive output.
 
-  --test                               Run everything as usual, but without executing any SQL.
+  --test                           Run everything as usual, but without executing any SQL.
 
 Diff Specific Options:
-  --no-alter                           An executed diff will not include ALTER statements.
-  --no-create                          An executed diff will not include CREATE statements.
-  --no-drop                            An executed diff will not include DROP statements.
+  -dVALUE, --database=VALUE        An executed diff will use the given database, if a database isn't specified in the schemafile.
+  --no-alter                       An executed diff will not include ALTER statements.
+  --no-create                      An executed diff will not include CREATE statements.
+  --no-drop                        An executed diff will not include DROP statements.
 
 
 HELP;
@@ -128,11 +128,10 @@ exit;
 }
 
 function load_config($path){
-	$rpath = realpath($path);
-	if($rpath===false) fail("Failed to load configfile: $path",65);
-	$json = json_decode(file_get_contents($rpath),true);
-	if(json_last_error()===JSON_ERROR_NONE) return $json;
-	else fail("Error parsing configfile as JSON: ".json_last_error_msg(),66);
+	list($json,$error) = Core::load_file($path);
+	if($error == 'invalid_path') fail("Failed to load configfile: $path",65);
+	elseif(isset($error)) fail("Error parsing configfile as JSON: $error",66);
+	return $json;
 }
 
 function ask_for_password(){
