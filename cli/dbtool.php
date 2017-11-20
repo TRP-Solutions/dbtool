@@ -3,21 +3,26 @@ require_once __DIR__."/../core/classes/core.php";
 
 session_start();
 
-define('OPTION_VOID',1);
-define('OPTION_TAKES_VALUE',2);
+define('OPTION_VOID',0);
+define('OPTION_TAKES_VALUE',1);
+define('OPTION_NOT_VOID',2); // never used without OPTION_TAKES_VALUE
+define('OPTION_REQUIRES_VALUE',3); // 0b01 + 0b10, combined OPTION_TAKES_VALUE & OPTION_NOT_VOID
+define('OPTION_REQUIRES_KEY_VALUE',4);
 $long_options = [
 	'help'=>OPTION_VOID,
-	'action'=>OPTION_TAKES_VALUE,
+	'action'=>OPTION_REQUIRES_VALUE,
 	'execute'=>OPTION_VOID,
 	'force'=>OPTION_VOID,
-	'password'=>OPTION_VOID | OPTION_TAKES_VALUE,
-	'user'=>OPTION_TAKES_VALUE,
+	'password'=>OPTION_TAKES_VALUE,
+	'user'=>OPTION_REQUIRES_VALUE,
 	'verbose'=>OPTION_VOID,
 	'test'=>OPTION_VOID,
-	'database'=>OPTION_TAKES_VALUE,
+	'database'=>OPTION_REQUIRES_VALUE,
 	'no-alter'=>OPTION_VOID,
 	'no-create'=>OPTION_VOID,
-	'no-drop'=>OPTION_VOID
+	'no-drop'=>OPTION_VOID,
+	'config'=>OPTION_REQUIRES_VALUE,
+	'var'=>OPTION_REQUIRES_KEY_VALUE
 ];
 $short_options = [
 	'h'=>'help',
@@ -26,7 +31,10 @@ $short_options = [
 	'f'=>'force',
 	'p'=>'password',
 	'u'=>'user',
-	'v'=>'verbose'
+	'v'=>'verbose',
+	'd'=>'database',
+	'c'=>'config',
+	'w'=>'var'
 ];
 
 $options = parse_options();
@@ -39,12 +47,12 @@ if(TEST_RUN) echo "Options:\n".json_encode($options)."\n";
 
 if(isset($options['verbose'])
 	&& $options['verbose']
-	&& isset($options['configfile'])){
+	&& isset($options['config'])){
 	echo "Configuration file: $options[configfile]\n";
 }
-if(isset($options['configfile'])){
-	$config = load_config($options['configfile']);
-	$configdir = dirname(realpath($options['configfile']));
+if(isset($options['config'])){
+	$config = load_config($options['config']);
+	$configdir = dirname(realpath($options['config']));
 } else {
 	$config = [];
 	$configdir = '.';
@@ -54,7 +62,7 @@ foreach($long_options as $name => $type){
 	if(isset($options[$name])) $config[$name] = $options[$name];
 	elseif(!isset($config[$name])) $config[$name] = false;
 }
-
+if(isset($options['schema'])) $config['schema'] = $options['schema'];
 if($config['action'] != 'diff' && $config['action'] != 'permission') help(); //help exits
 define('VERBOSE',$config['verbose']);
 
@@ -65,11 +73,11 @@ switch(Core::load_json($config, $configdir)){
 	case 'wrong_credentials': fail("Connection Error: Username or password incorrect", 2); break;
 }
 
-$action = $config['action'] || null;
-$core = Core::run($action);
+$core = Core::run();
 if(!isset($core['obj'])){
 	fail("Invalid action: $core[action]",3);
 }
+if(isset($core['obj']->error)) fail("Core Error: ({$core['obj']->error})",4);
 if(VERBOSE) echo "Action: [$core[action]]\n";
 if($core['action']=='diff') show_diff($core['result']);
 elseif($core['action']=='permission') show_permission($core['result']);
@@ -102,17 +110,21 @@ exit;
 
 function help(){
 echo <<<'HELP'
-Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
+Usage:
+php dbtool.php [OPTIONS] --action=[diff|permission] SCHEMAFILE [SCHEMAFILE...]
+php dbtool.php [OPTIONS] --config=CONFIGFILE
 
 General Options:
   -h, --help                       Displays this help text.
 
   -aVALUE, --action=VALUE          Specify the action used, supported actions are 'diff' and 'permission'.
+  -cVALUE, --config=VALUE          Loads a config file.
   -e, --execute                    Run the generated SQL to align the database with the provided schema.
   -f, --force                      Combined with -e: Run any SQL without asking first.
   -p[VALUE], --password[=VALUE]    Use given password or if not set, request password before connecting to the database.
   -uVALUE, --user=VALUE            Use the given username when connecting to the database.
   -v, --verbose                    Write extra descriptive output.
+  -wKEY=VALUE, --var KEY=VALUE     Define a variable to be inserted in the schema.
 
   --test                           Run everything as usual, but without executing any SQL.
 
@@ -246,7 +258,10 @@ function show_error($result){
 	if($result['errno'] !== 0){
 		echo "Error ($result[errno]): ";
 		if(isset($result['error'])) echo $result['error'];
-		else echo 'Unknown Error';
+		else {
+			echo 'Unknown Error';
+			debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		}
 		echo "\n";
 		if(isset($result['sqlerror'])) echo $result['sqlerror'];
 		echo "\n";
@@ -282,6 +297,7 @@ function parse_options(){
 	global $argv, $long_options, $short_options;
 	$options = [];
 	$index = 1;
+
 	while(isset($argv[$index])){
 		$option = $argv[$index];
 		if($option[0]=='-'){
@@ -290,22 +306,37 @@ function parse_options(){
 				$opt = explode('=',substr($option,2),2);
 				if(!isset($long_options[$opt[0]])) fail("Unknown Option ($opt[0])", 33);
 				$type = $long_options[$opt[0]];
-				if($type & ~OPTION_TAKES_VALUE && isset($opt[1])) fail("Option \"$opt[0]\" can't take a value",34);
-				if($type & ~OPTION_VOID && !isset($opt[1])) fail("Option \"$opt[0]\" requires a value.",35);
-				$options[$opt[0]] = isset($opt[1]) ? $opt[1] : true;
+				if(!($type & OPTION_TAKES_VALUE) && isset($opt[1])) fail("Option \"$opt[0]\" can't take a value",34);
+				if($type & OPTION_NOT_VOID && !isset($opt[1])) fail("Option \"$opt[0]\" requires a value.",35);
+				if($type & OPTION_REQUIRES_KEY_VALUE){
+					if(!isset($argv[$index+1])) fail("Option \"$opt[0]\" requires a key=value pair.",36);
+					$pair = explode('=',$argv[$index+1]);
+					if($pair[0][0]=='-') fail("Option \"$opt[0]\": Key must not start with a dash. Is \"$pair[0]\" a separate option?",37);
+					if(!isset($pair[1])) fail("Option \"$opt[0]\" requires key \"$pair[0]\" to have a value.",38);
+					if(!isset($options[$opt[0]])) $options[$opt[0]] = [];
+					$options[$opt[0]][$pair[0]] = $pair[1];
+					$index++;
+				} else {
+					$options[$opt[0]] = isset($opt[1]) ? $opt[1] : true;
+				}
 			} else {
 				// short form option
 				$i = 1;
 				while(isset($option[$i])){
-					if(!isset($short_options[$option[$i]])) fail("Unknown Flag ($option[$i])",36);
+					if(!isset($short_options[$option[$i]])) fail("Unknown Flag ($option[$i])",39);
 					$name = $short_options[$option[$i]];
 					if(!isset($long_options[$name])) fail("Internal Error: Option \"$name\" ($option[$i]) not implemented correctly",1025);
-					if($long_options[$name] & OPTION_TAKES_VALUE){
+					if($long_options[$name] & (OPTION_TAKES_VALUE | OPTION_REQUIRES_KEY_VALUE)){
 						// assume the rest of the string is the given value
 						$value = substr($option,$i+1);
-						if($value === false){
-							if($long_options[$name] & OPTION_VOID) $value = true;
-							else fail("Option \"$name\" ($option[$i]) requires a value.",37);
+						if($long_options[$name] & OPTION_REQUIRES_KEY_VALUE){
+							if($value === false) fail("Option \"$name\" ($option[$i]) requires a key=value pair.",40);
+							$pair = explode('=',$value);
+							if(!isset($pair[1])) fail("Option \"$name\" ($option[$i]) requires key \"$pair[0]\" to have a value.",41);
+							$value = isset($option[$name]) && is_array($options[$name]) ? array_merge($options[$name],[$pair[0]=>$pair[1]]) : [$pair[0]=>$pair[1]];
+						} elseif($value === false){
+							if($long_options[$name] & ~OPTION_NOT_VOID) $value = true;
+							else fail("Option \"$name\" ($option[$i]) requires a value.",42);
 						}
 						$i = strlen($option);
 					} else {
@@ -316,8 +347,8 @@ function parse_options(){
 				}
 			}
 		} else {
-			if(isset($options['configfile'])) fail("Can't use more than one config file",38);
-			$options['configfile'] = $option;
+			if(!isset($options['schema'])) $options['schema'] = [];
+			$options['schema'][] = $option;
 		}
 		$index++;
 	}

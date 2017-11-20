@@ -4,17 +4,21 @@
 ## CLI
 Help text from the command line interface CLI/dbtool.php:
 ```
-Usage: php dbtool.php [OPTIONS] CONFIGFILE [OPTIONS]
+Usage:
+php dbtool.php [OPTIONS] --action=[diff|permission] SCHEMAFILE [SCHEMAFILE...]
+php dbtool.php [OPTIONS] --config=CONFIGFILE
 
 General Options:
   -h, --help                       Displays this help text.
 
   -aVALUE, --action=VALUE          Specify the action used, supported actions are 'diff' and 'permission'.
+  -cVALUE, --config=VALUE          Loads a config file.
   -e, --execute                    Run the generated SQL to align the database with the provided schema.
   -f, --force                      Combined with -e: Run any SQL without asking first.
   -p[VALUE], --password[=VALUE]    Use given password or if not set, request password before connecting to the database.
   -uVALUE, --user=VALUE            Use the given username when connecting to the database.
   -v, --verbose                    Write extra descriptive output.
+  -wKEY=VALUE, --var KEY=VALUE     Define a variable to be inserted in the schema.
 
   --test                           Run everything as usual, but without executing any SQL.
 

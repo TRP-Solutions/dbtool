@@ -13,7 +13,9 @@ class CoreDiff extends Core {
 	protected function __construct(){
 		parent::__construct();
 		$this->dbname = Config::get('database');
-		if(isset($this->schemas[0]) && $this->dbname){
+		if(!isset($this->schemas[0])) $this->error = 'missing_schema';
+		elseif(empty($this->dbname)) $this->error = 'missing_dbname';
+		else {
 			$file = new SQLFile($this->schemas[0]);
 			$diff = new Diff();
 			$this->result = $diff->diff($this->dbname, $file);
@@ -91,6 +93,7 @@ abstract class Core {
 		return ['action'=>$action,'result'=>$result,'obj'=>$obj];
 	}
 
+	public $error = null;
 	protected $schemas = [];
 	protected function __construct(){
 		DB::login();
