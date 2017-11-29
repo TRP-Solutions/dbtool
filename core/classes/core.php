@@ -23,6 +23,8 @@ class CoreDiff extends Core {
 	}
 
 	public function execute($options = 0b111){
+		$dbname = DB::escape($this->dbname);
+		DB::sql("USE $dbname");
 		$lines = 0;
 		if($options & self::ALTER){
 			$lines += count($this->result['alter_queries']);
