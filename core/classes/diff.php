@@ -90,6 +90,17 @@ SQL;
 		}
 	}
 
+	public function diff_multi($dbname, $files, $vars = []){
+		$results = ['errno'=>0,'files'=>[]];
+		foreach($files as $filename){
+			$file = new SQLFile($filename, $vars);
+			$result = $this->diff($dbname, $file);
+			if($result['errno']!=0) return $result;
+			$results['files'][basename($filename)] = $result;
+		}
+		return $results;
+	}
+
 	public function diff($dbname, $sqlfile){
 		if(!DB::$isloggedin){
 			return ['errno'=>3,'error'=>"Not connected to database."];

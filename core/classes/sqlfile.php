@@ -130,7 +130,7 @@ class SQLFile {
 		}
 		while($stmt = $this->get_next_statement($stream)){
 			foreach($this->vars as $search => $replace){
-				$stmt = str_replace($search, $replace, $stmt);
+				$stmt = str_replace('['.$search.']', $replace, $stmt);
 			}
 			$statements[] = $stmt;
 		}

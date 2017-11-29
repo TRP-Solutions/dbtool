@@ -13,12 +13,12 @@ class CoreDiff extends Core {
 	protected function __construct(){
 		parent::__construct();
 		$this->dbname = Config::get('database');
-		if(!isset($this->schemas[0])) $this->error = 'missing_schema';
+		if(empty($this->schemas)) $this->error = 'missing_schema';
 		elseif(empty($this->dbname)) $this->error = 'missing_dbname';
 		else {
-			$file = new SQLFile($this->schemas[0]);
+			$vars = Config::get('variables');
 			$diff = new Diff();
-			$this->result = $diff->diff($this->dbname, $file);
+			$this->result = $diff->diff_multi($this->dbname, $this->schemas, $vars);
 		}
 	}
 

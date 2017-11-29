@@ -157,12 +157,12 @@ class PermissionDiff {
 	
 
 	private function get_filedata($filename){
-		$vars = ['[PRIM]' => $this->prim];
+		$vars = ['PRIM' => $this->prim];
 		if(isset($this->seco)){
-			$vars['[SECO]'] = $this->seco;
+			$vars['SECO'] = $this->seco;
 		}
 		foreach($this->sql_vars as $key => $value){
-			$vars["[$key]"] = $value;
+			$vars[$key] = $value;
 		}
 		$file = new SQLFile($filename, $vars);
 		if($file->exists){

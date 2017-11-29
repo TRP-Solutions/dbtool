@@ -48,7 +48,7 @@ if(TEST_RUN) echo "Options:\n".json_encode($options)."\n";
 if(isset($options['verbose'])
 	&& $options['verbose']
 	&& isset($options['config'])){
-	echo "Configuration file: $options[configfile]\n";
+	echo "Configuration file: $options[config]\n";
 }
 if(isset($options['config'])){
 	$config = load_config($options['config']);
@@ -177,63 +177,82 @@ function show_permission($result){
 	}
 }
 
-function show_diff($result){
-	if(show_error($result)) return;
+function show_diff($rs){
+	if(show_error($rs)) return;
 	global $config;
 
 	$differences_found = false;
-	if(!empty($result['drop_queries'])){
-		$differences_found = true;
-		$count = count($result['tables_in_database_only']);
-		if($config['no-drop']){
-			if(VERBOSE) echo "Ignoring $count table(s) in database.\n";
-		} else {
-			echo "Found $count table(s) in database only:\n\t";
-			echo implode(', ',$result['tables_in_database_only'])."\n";
-			if(VERBOSE){
-				echo "The following drop queries will remove them:\n\t";
-				echo implode("\n\t",$result['drop_queries'])."\n";
+	foreach($rs['files'] as $filename => $result){
+		$title_printed = false;
+		$print_title = function() use ($filename, &$title_printed){
+			if(!$title_printed){
+				echo "\nFrom file: $filename\n\n";
+				$title_printed = true;
 			}
-			echo "\n";
-		}
-	}
-	
-	if(!empty($result['create_queries'])){
-		$differences_found = true;
-		$count = count($result['tables_in_file_only']);
-		if($config['no-create']){
-			if(VERBOSE) echo "Ignoring $count table(s) in file.\n";
-		} else {
-			echo "Found $count table(s) in file only:\n\t";
-			echo implode(', ',$result['tables_in_file_only'])."\n";
-			if(VERBOSE){
-				echo "The following create queries will add them:\n";
-				echo implode("\n",array_map('indent_text', $result['create_queries']))."\n";
+		};
+		if(!empty($result['drop_queries'])){
+			$differences_found = true;
+			$count = count($result['tables_in_database_only']);
+			if($config['no-drop']){
+				if(VERBOSE){
+					$print_title();
+					echo "Ignoring $count table(s) in database.\n";
+				}
+			} else {
+				$print_title();
+				echo "Found $count table(s) in database only:\n\t";
+				echo implode(', ',$result['tables_in_database_only'])."\n";
+				if(VERBOSE){
+					echo "The following drop queries will remove them:\n\t";
+					echo implode("\n\t",$result['drop_queries'])."\n";
+				}
+				echo "\n";
 			}
-			echo "\n";
 		}
-	}
+		
+		if(!empty($result['create_queries'])){
+			$differences_found = true;
+			$count = count($result['tables_in_file_only']);
+			if($config['no-create']){
+				if(VERBOSE){
+					$print_title();
+					echo "Ignoring $count table(s) in file.\n";
+				}
+			} else {
+				$print_title();
+				echo "Found $count table(s) in file only:\n\t";
+				echo implode(', ',$result['tables_in_file_only'])."\n";
+				if(VERBOSE){
+					echo "The following create queries will add them:\n";
+					echo implode("\n",array_map('indent_text', $result['create_queries']))."\n";
+				}
+				echo "\n";
+			}
+		}
 
-	if(!empty($result['alter_queries'])){
-		$differences_found = true;
-		if($config['no-alter']){
-			if(VERBOSE){
-				$columns = array_keys(array_filter($result['intersection_columns'],function($e){return !empty($e);}));
-				$keys = array_keys(array_filter($result['intersection_keys'],function($e){return !empty($e);}));
-				$options = array_keys(array_filter($result['intersection_options'],function($e){return !empty($e);}));
-				$count = count(array_unique($columns+$keys+$options));
-				echo "Ignoring differences in $count table(s).\n";
-			}
-			
-		} else {
-			$array = show_nonempty_keys("table(s) with column differences", $result['intersection_columns']);
-			$array = show_nonempty_keys("table(s) with key differences", $result['intersection_keys']);
-			$array = show_nonempty_keys("table(s) with option differences", $result['intersection_options']);
-			if(VERBOSE){
-				echo "The following alter queries will align them:\n";
-				foreach($result['alter_queries'] as $table => $queries){
-					echo $table.":\n";
-					echo implode("\n",array_map('indent_text', $queries))."\n";
+		if(!empty($result['alter_queries'])){
+			$differences_found = true;
+			if($config['no-alter']){
+				if(VERBOSE){
+					$columns = array_keys(array_filter($result['intersection_columns'],function($e){return !empty($e);}));
+					$keys = array_keys(array_filter($result['intersection_keys'],function($e){return !empty($e);}));
+					$options = array_keys(array_filter($result['intersection_options'],function($e){return !empty($e);}));
+					$count = count(array_unique($columns+$keys+$options));
+					$print_title();
+					echo "Ignoring differences in $count table(s).\n";
+				}
+				
+			} else {
+				$print_title();
+				$array = show_nonempty_keys("table(s) with column differences", $result['intersection_columns']);
+				$array = show_nonempty_keys("table(s) with key differences", $result['intersection_keys']);
+				$array = show_nonempty_keys("table(s) with option differences", $result['intersection_options']);
+				if(VERBOSE){
+					echo "The following alter queries will align them:\n";
+					foreach($result['alter_queries'] as $table => $queries){
+						echo $table.":\n";
+						echo implode("\n",array_map('indent_text', $queries))."\n";
+					}
 				}
 			}
 		}
