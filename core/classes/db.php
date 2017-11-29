@@ -82,7 +82,7 @@ class DB {
 		$database = Config::get('database');
 		if(!isset($database)) $database = '';
 		if(isset($username) && isset($password)){
-			$mysqli = new mysqli('localhost', $username, $password, $database);
+			$mysqli = new mysqli($host, $username, $password, $database);
 			
 			if($mysqli->connect_error){
 				//Core::msg('error', "Failed to connect to MySQL: {$mysqli->connect_error}");
