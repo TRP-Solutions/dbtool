@@ -29,16 +29,16 @@ class CoreDiff extends Core {
 		$lines = 0;
 		foreach($this->result['files'] as $file){
 			if($options & self::ALTER){
-				$lines += count($this->file['alter_queries']);
-				foreach($this->file['alter_queries'] as $sql) DB::sql($sql);
+				$lines += count($file['alter_queries']);
+				foreach($file['alter_queries'] as $sql) DB::sql($sql);
 			}
 			if($options & self::CREATE){
-				$lines += count($this->file['create_queries']);
-				foreach($this->file['create_queries'] as $sql) DB::sql($sql);
+				$lines += count($file['create_queries']);
+				foreach($file['create_queries'] as $sql) DB::sql($sql);
 			}
 			if($options & self::DROP){
-				$lines += count($this->file['drop_queries']);
-				foreach($this->file['drop_queries'] as $sql) DB::sql($sql);
+				$lines += count($file['drop_queries']);
+				foreach($file['drop_queries'] as $sql) DB::sql($sql);
 			}
 		}
 		return $lines;
