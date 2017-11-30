@@ -17,6 +17,7 @@ class CoreDiff extends Core {
 		elseif(empty($this->dbname)) $this->error = 'missing_dbname';
 		else {
 			$vars = Config::get('variables');
+			if(!isset($vars)) $vars = [];
 			$diff = new Diff();
 			$this->result = $diff->diff_multi($this->dbname, $this->schemas, $vars);
 		}
@@ -26,17 +27,19 @@ class CoreDiff extends Core {
 		$dbname = DB::escape($this->dbname);
 		DB::sql("USE $dbname");
 		$lines = 0;
-		if($options & self::ALTER){
-			$lines += count($this->result['alter_queries']);
-			foreach($this->result['alter_queries'] as $sql) DB::sql($sql);
-		}
-		if($options & self::CREATE){
-			$lines += count($this->result['create_queries']);
-			foreach($this->result['create_queries'] as $sql) DB::sql($sql);
-		}
-		if($options & self::DROP){
-			$lines += count($this->result['drop_queries']);
-			foreach($this->result['drop_queries'] as $sql) DB::sql($sql);
+		foreach($this->result['files'] as $file){
+			if($options & self::ALTER){
+				$lines += count($this->file['alter_queries']);
+				foreach($this->file['alter_queries'] as $sql) DB::sql($sql);
+			}
+			if($options & self::CREATE){
+				$lines += count($this->file['create_queries']);
+				foreach($this->file['create_queries'] as $sql) DB::sql($sql);
+			}
+			if($options & self::DROP){
+				$lines += count($this->file['drop_queries']);
+				foreach($this->file['drop_queries'] as $sql) DB::sql($sql);
+			}
 		}
 		return $lines;
 	}
