@@ -3,7 +3,7 @@ require_once "../core/classes/core.php";
 require_once "lib/heal-document/HealHTML.php";
 require_once "classes/html.php";
 require_once "classes/diffview.php";
-include "config.php";
+require_once "config.php";
 
 
 $output = new HealHTML();

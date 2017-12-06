@@ -1,3 +1,3 @@
 <?php
-define('SCHEMAPATH', '../../configfiles/'); //defaults to .
+define('SCHEMAPATH', 'configfiles/'); //defaults to .
 ?>
