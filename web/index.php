@@ -3,38 +3,43 @@ require_once "../core/classes/core.php";
 require_once "lib/heal-document/HealHTML.php";
 require_once "classes/html.php";
 require_once "classes/diffview.php";
+include "config.php";
 
 
 $output = new HealHTML();
 list($head,$body) = $output->html('DBTool');
-$head->css('css/main.css');
-$head->el('script',['src'=>'js/tabs.js']);
+$head->css('lib/bootstrap-4.0.0-beta.2-dist/bootstrap.css');
 
-$body->at('class','flex col');
+$nav = $body
+	->el('header',['class'=>'navbar navbar-dark bg-dark mb-3'])
+	->el('div',['class'=>'container']);
+$nav->el('a',['class'=>'navbar-brand','href'=>'.'])->te('DBTool');
+$header = $body->el('div',['class'=>'container']);
+$main = $body->el('div',['class'=>'container']);
 
-$header = $body->el('header');
+if(!defined('SCHEMAPATH')) define('SCHEMAPATH','.');
+$path = realpath(SCHEMAPATH);
+$files = glob($path.'/*.json');
+$filenames = array_map('basename', $files);
+$name_to_file = array_combine($filenames,$files);
+$filenames = array_combine($filenames,$filenames);
 
-$files = array_map(function($path){
-	return basename(dirname($path)).'/'.basename($path);
-}, glob('../../configfiles/*.json'));
-$files = array_map(function($path){
-	return basename($path);
-}, array_combine($files,$files));
-$form = $header->form('index.php');
-$form->label('Config file: ')
-	->select('config')
-	->options($files,isset($_GET['config'])?$_GET['config']:'');
-$form->submit();
+$form = $header->form('.')->at(['class'=>'mb-3']);
+$form->label('Config file','configselect');
+$group = $form->el('div',['class'=>'input-group']);
+$group->el('span',['class'=>'input-group-btn'])->el('button',['class'=>'btn btn-primary','onclick'=>'form.submit()'])->te('Submit');
+$select = $group->select('config')->at(['class'=>'form-control','id'=>'configselect']);
+$select->options($filenames,isset($_GET['config'])?$_GET['config']:'');
 
-if(isset($_GET['config'])){
-	make_body($body,$header,$_GET['config']);
+if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
+	make_body($main,$header,$name_to_file[$_GET['config']]);
 }
 
 echo $output;
 
 function make_body($body,$header,$path){
 	$confdiv = $body->el('div');
-	$path = realpath(__DIR__.'/../../'.$path);
+	$path = realpath($path);
 	$basedir = dirname($path);
 	list($json,$error) = Core::load_file($path);
 	if($json['action']=='diff' && isset($json['variables']['PRIM'])) $json['database'] = $json['variables']['PRIM'];
@@ -50,42 +55,41 @@ function make_body($body,$header,$path){
 			$result['action'] .= '_execute';
 		}
 
-		$confdiv->p('Connected as: '.Config::get('user'));
-		$confdiv->p('Schemas:');
 		$schemas = Config::get('schema');
-		if(is_string($schemas)) $schemas = [$schemas];
-		$schemas = array_map(function($s)use($basedir){return realpath($basedir.'/'.$s);}, $schemas);
-		HTML::itemize($confdiv, $schemas);
+		if(isset($schemas)){
+			if(is_string($schemas)) $schemas = [$schemas];
+			$schemas = array_map(function($s){return preg_replace("|^[./]+|",'',$s);}, $schemas);
+			HTML::itemize($body, $schemas, 'Schemas');
+		}
+		
 		$dbmsg = DB::get_messages();
 		if(!empty($dbmsg)){
-			$confdiv->p('DB messages:');
-			HTML::itemize($confdiv, array_map(function($msg){return $msg['text'];}, $dbmsg));
+			$msgs = array_map(function($msg){return $msg['text'];}, $dbmsg);
+			HTML::itemize($body, $msgs, 'DB Messages');
 		}
 		if($result['action']=='permission'){
 			$cols = ['location' => 'Location', 'priv_types' => 'Priv Types', 'database' => 'Database', 'table' => 'Table', 'user' => 'User'];
 			foreach($result['result']['files'] as $file){
 				if(!empty($file['data'])){
-					$body->el('h1')->te($file['title']);
-					HTML::table($body, $file['data'], $cols);
+					HTML::table($body, $file['data'], $cols, $file['title']);
 				}
 			}
-			$js = 'window.location="?config='.$_GET['config'].'&execute"';
-			$header->el('button',['onclick'=>$js])->te('Execute');
+			$header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
 		} elseif($result['action']=='permission_execute'){
-			$h1 = $body->el('h1');
+			$card = $body->el('div',['class'=>'card']);
+			$alert = $card->el('div',['class'=>'card-header text-light bg-success h3']);
 			$lines = 0;
+			$pre = $card->el('pre',['class'=>'card-body text-light bg-dark m-0']);
 			foreach($result['result']['files'] as $file){
 				foreach($file['sql'] as $sql){
-					$body->el('pre')->te($sql);
+					$pre->te($sql."\n");
 					$lines++;
 				}
 			}
-			$h1->te("Executed $lines lines of SQL");
+			$alert->te("Executed $lines SQL statements");
 		} elseif($result['action']=='diff'){
-			DiffView::build($body, $result['result']);
-
-			$js = 'window.location="?config='.$_GET['config'].'&execute"';
-			$header->el('button',['onclick'=>$js])->te('Execute');
+			$diffs_found = DiffView::build($body, $result['result']);
+			if($diffs_found) $header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
 		} elseif($result['action']=='diff_execute'){
 			$body->p('The following SQL was executed:');
 			DiffView::build($body, $result['result']);

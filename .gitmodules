@@ -1,0 +1,3 @@
+[submodule "web/lib/heal-document"]
+	path = web/lib/heal-document
+	url = git@github.com:TRP-Solutions/heal-document.git

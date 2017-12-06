@@ -1,69 +1,83 @@
 <?php
 class DiffView {
-	public static function build($parent, $result) {
-		$data = self::prepare_data($result);
+	public static function build($parent, $res) {
+		$output = false;
+		foreach($res['files'] as $filename => $result){
+			$data = self::prepare_data($result);
 
-		$table_count = count($data['tables']);
-		$db_count = count($result['tables_in_database_only']);
-		$file_count = count($result['tables_in_file_only']);
+			$table_count = count($data['tables']);
+			$db_count = count($result['tables_in_database_only']);
+			$file_count = count($result['tables_in_file_only']);
 
-		if($table_count || $db_count || $file_count) {
-			
-		} else {
-			$parent->el('div')->te('No difference found.');
-		}
-
-		if($table_count > 0){
-			$ul = HTML::head($parent, 'ul', 'li', "Tables in intersection");
-			foreach($data['tables'] as $tablename){
-				$headtext = "Table: `$tablename`";
-				$li = HTML::tab_head($ul, 'li', "t_$tablename", 'div', $headtext, 'SQL');
-				$datatab = HTML::tab($li, 'div', 'Data', true);
-				if(!empty($data['opt'][$tablename])){
-					$table = $datatab->el('table');
-					$tr = $table->el('tr');
-					$th = $tr->el('th');
-					$th->te('Option mismatch');
-					$th = $tr->el('th');
-					$th->te('Database');
-					$th = $tr->el('th');
-					$th->te('Schemafile');
-					foreach($data['opt'][$tablename] as $type => $diff){
-						$tr = $table->el('tr');
-						$tr->at('class','diff');
-						$tr->el('td')->te($type);
-						$tr->el('td')->te($diff['t1']);
-						$tr->el('td')->te($diff['t2']);
+			if($table_count > 0){
+				$output = true;
+				$parent->el('h1')->te("Tables In Intersection");
+				foreach($data['tables'] as $tablename){
+					$card = $parent->el('div',['class'=>'card mb-3']);
+					$card->el('h2',['class'=>'card-header'])->te($tablename);
+					
+					if(!empty($data['cols'][$tablename])){
+						HTML::table($card, $data['cols'][$tablename], [], 'Columns');
+					}
+					if(!empty($data['keys'][$tablename])){
+						HTML::table($card, $data['keys'][$tablename], ['location' => 'Location', 'keyname' => 'Keyname', 'cols' => 'Columns', 'non_unique' => 'Non Unique'],'Keys');
+					}
+					if(!empty($data['opt'][$tablename])){
+						$table = $card->el('table',['class'=>'table m-0']);
+						$table->el('tr',['class'=>'thead-light'])->el('th',['class'=>'h4','colspan'=>3])->te('Options');
+						$tr = $table->el('tr',['class'=>'thead-light']);
+						$th = $tr->el('th');
+						$th->te('Option mismatch');
+						$th = $tr->el('th');
+						$th->te('Database');
+						$th = $tr->el('th');
+						$th->te('Schemafile');
+						foreach($data['opt'][$tablename] as $type => $diff){
+							$tr = $table->el('tr');
+							$tr->at(['class'=>'diff']);
+							$tr->el('td')->te($type);
+							$tr->el('td')->te($diff['t1']);
+							$tr->el('td')->te($diff['t2']);
+						}
+					}
+					$pre = $card->el('pre',['class'=>'card-body text-light bg-dark']);
+					foreach($result['alter_queries'][$tablename] as $query){
+						$pre->te($query."\n");
 					}
 				}
-				if(!empty($data['cols'][$tablename])){
-					$datatab->te('Columns:');
-					HTML::table($datatab, $data['cols'][$tablename]);
+			}
+			if($db_count || $file_count){
+				$output = true;
+				if($db_count > 0){
+					$card = $parent->el('div',['class'=>'card mb-3']);
+					$headtext = "Tables only in database: $filename";
+					$card->el('h2',['class'=>'card-header'])->te($headtext);
+					$list = $card->el('ul',['class'=>'list-group list-group-flush']);
+					foreach($result['tables_in_database_only'] as $item){
+						$list->el('li',['class'=>'list-group-item'])->te($item);
+					}
+					$pre = $card->el('pre',['class'=>'card-body text-light bg-dark']);
+					foreach($result['drop_queries'] as $query){
+						$pre->te($query."\n");
+					}
 				}
-				if(!empty($data['keys'][$tablename])){
-					$datatab->te('Keys:');
-					HTML::table($datatab, $data['keys'][$tablename], ['location' => 'Location', 'keyname' => 'Keyname', 'cols' => 'Columns', 'non_unique' => 'Non Unique']);
+				if($file_count > 0){
+					$card = $parent->el('div',['class'=>'card mb-3']);
+					$headtext = "Tables only in schema file: $filename";
+					$card->el('h2',['class'=>'card-header'])->te($headtext);
+					$list = $card->el('ul',['class'=>'list-group list-group-flush']);
+					foreach($result['tables_in_file_only'] as $item){
+						$list->el('li',['class'=>'list-group-item'])->te($item);
+					}
+					$pre = $card->el('pre',['class'=>'card-body text-light bg-dark']);
+					foreach($result['create_queries'] as $query){
+						$pre->te($query."\n");
+					}
 				}
-				HTML::itemize(HTML::tab($li, 'ul', 'SQL'), $result['alter_queries'][$tablename]);
 			}
 		}
-		if($db_count || $file_count){
-			$div = $parent->el('div');
-			$div->at('class','flex row');
-			if($db_count > 0){
-				$headtext = "Tables only in database: {$_POST['database']}";
-				$db_tables = HTML::tab_head($div, 'ul', 'db_tables', 'li', $headtext, 'SQL', 'li');
-				$run = HTML::$alt_elem->el('button');
-				HTML::itemize(HTML::tab($db_tables, 'div', 'Data', true), $result['tables_in_database_only']);
-				HTML::itemize(HTML::tab($db_tables, 'div', 'SQL'), $result['drop_queries']);
-			}
-			if($file_count > 0){
-				$headtext = "Tables only in schema file: {$_POST['schemafile']}";
-				$file_tables = HTML::tab_head($div, 'ul', 'file_tables', 'li', $headtext, 'SQL', 'li');
-				HTML::itemize(HTML::tab($file_tables, 'div', 'Data', true), $result['tables_in_file_only']);
-				HTML::itemize(HTML::tab($file_tables, 'div', 'SQL'), $result['create_queries']);
-			}
-		}
+		if(!$output) $parent->el('div',['class'=>'alert alert-success h3'])->te('No Differences');
+		return $output;
 	}
 
 	private static function prepare_data($result){
