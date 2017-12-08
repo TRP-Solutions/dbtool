@@ -18,8 +18,12 @@ $header = $body->el('div',['class'=>'container']);
 $main = $body->el('div',['class'=>'container']);
 
 if(!defined('SCHEMAPATH')) define('SCHEMAPATH','.');
-$path = realpath(SCHEMAPATH);
-$files = glob($path.'/*.json');
+$schemapaths = explode(':',SCHEMAPATH);
+$files = [];
+foreach($schemapaths as $path){
+	$path = realpath($path);
+	$files = array_merge($files,glob($path.'/*.json'));
+}
 $filenames = array_map('basename', $files);
 $name_to_file = array_combine($filenames,$files);
 $filenames = array_combine($filenames,$filenames);
