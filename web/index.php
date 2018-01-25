@@ -52,7 +52,7 @@ function make_body($body,$header,$path){
 
 	if(isset($result['result']['error'])){
 		$res = $result['result'];
-		$confdiv->p("Error ($res[errno]): ".$res['error']);
+		$confdiv->p("Error ($res[errno]): ".$res['error'].(isset($res['sqlerror']) ? ' '.$res['sqlerror'] : ''));
 	} else {
 		if(isset($_GET['execute'])){
 			$result['obj']->execute();
