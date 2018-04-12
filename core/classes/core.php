@@ -19,7 +19,7 @@ class CoreDiff extends Core {
 			$vars = Config::get('variables');
 			if(!isset($vars)) $vars = [];
 			$diff = new Diff();
-			$this->result = $diff->diff_multi($this->dbname, $this->schemas, $vars);
+			$this->result = $diff->diff_sql($this->dbname, $this->schemas, $vars);
 		}
 	}
 

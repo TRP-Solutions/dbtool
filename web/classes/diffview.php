@@ -1,6 +1,6 @@
 <?php
 class DiffView {
-	public static function build($parent, $res) {
+	public static function build($parent, $res, $only_sql = false) {
 		$output = false;
 		foreach($res['files'] as $filename => $result){
 			$data = self::prepare_data($result);
@@ -15,29 +15,30 @@ class DiffView {
 				foreach($data['tables'] as $tablename){
 					$card = $parent->el('div',['class'=>'card mb-3']);
 					$card->el('h2',['class'=>'card-header'])->te($tablename);
-					
-					if(!empty($data['cols'][$tablename])){
-						HTML::table($card, $data['cols'][$tablename], [], 'Columns');
-					}
-					if(!empty($data['keys'][$tablename])){
-						HTML::table($card, $data['keys'][$tablename], ['location' => 'Location', 'keyname' => 'Keyname', 'cols' => 'Columns', 'non_unique' => 'Non Unique'],'Keys');
-					}
-					if(!empty($data['opt'][$tablename])){
-						$table = $card->el('table',['class'=>'table m-0']);
-						$table->el('tr',['class'=>'thead-light'])->el('th',['class'=>'h4','colspan'=>3])->te('Options');
-						$tr = $table->el('tr',['class'=>'thead-light']);
-						$th = $tr->el('th');
-						$th->te('Option mismatch');
-						$th = $tr->el('th');
-						$th->te('Database');
-						$th = $tr->el('th');
-						$th->te('Schemafile');
-						foreach($data['opt'][$tablename] as $type => $diff){
-							$tr = $table->el('tr');
-							$tr->at(['class'=>'diff']);
-							$tr->el('td')->te($type);
-							$tr->el('td')->te($diff['t1']);
-							$tr->el('td')->te($diff['t2']);
+					if(!$only_sql){
+						if(!empty($data['cols'][$tablename])){
+							HTML::table($card, $data['cols'][$tablename], [], 'Columns');
+						}
+						if(!empty($data['keys'][$tablename])){
+							HTML::table($card, $data['keys'][$tablename], ['location' => 'Location', 'keyname' => 'Keyname', 'cols' => 'Columns', 'non_unique' => 'Non Unique'],'Keys');
+						}
+						if(!empty($data['opt'][$tablename])){
+							$table = $card->el('table',['class'=>'table m-0']);
+							$table->el('tr',['class'=>'thead-light'])->el('th',['class'=>'h4','colspan'=>3])->te('Options');
+							$tr = $table->el('tr',['class'=>'thead-light']);
+							$th = $tr->el('th');
+							$th->te('Option mismatch');
+							$th = $tr->el('th');
+							$th->te('Database');
+							$th = $tr->el('th');
+							$th->te('Schemafile');
+							foreach($data['opt'][$tablename] as $type => $diff){
+								$tr = $table->el('tr');
+								$tr->at(['class'=>'diff']);
+								$tr->el('td')->te($type);
+								$tr->el('td')->te($diff['t1']);
+								$tr->el('td')->te($diff['t2']);
+							}
 						}
 					}
 					$pre = $card->el('pre',['class'=>'card-body text-light bg-dark']);

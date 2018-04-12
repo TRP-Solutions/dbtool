@@ -96,7 +96,7 @@ function make_body($body,$header,$path){
 			if($diffs_found) $header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
 		} elseif($result['action']=='diff_execute'){
 			$body->p('The following SQL was executed:');
-			DiffView::build($body, $result['result']);
+			DiffView::build($body, $result['result'], true);
 		} else {
 			$body->el('pre')->te(json_encode($result));
 		}

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/db.php';
 require_once __DIR__.'/sqlfile.php';
+
 class Diff {
 	const DB_PREFIX = 'diff_php_temporary_database_';
 	private $compare_tables_stmt;
@@ -88,6 +89,268 @@ SQL;
 			$this->compare_keys_stmt = DB::prepare($this->compare_keys);
 			$this->compare_options_stmt = DB::prepare($this->compare_options);
 		}
+	}
+
+	public function diff_sql($dbname, $files, $vars = []){
+		$results = ['errno'=>0,'files'=>[]];
+		$tables = $this->list_tables($dbname);
+		$tables = array_combine($tables,$tables);
+		foreach($files as $filename){
+			$file_only_tables = [];
+			$intersection_columns = [];
+			$intersection_keys = [];
+			$intersection_options = [];
+			$alter_queries = [];
+			$file = new SQLFile($filename, $vars);
+			$stmts = $file->get_all_stmts();
+			foreach($stmts as $stmt){
+				$file_table = SQLFile::parse_statement($stmt);
+				if(isset($file_table['error'])){
+					return [
+						'errno'=> 1,
+						'error'=> "Parse Error in file \"$filename\", table `$file_table[name]`: $file_table[error]"
+					];
+				} elseif(isset($tables[$file_table['name']])){
+					unset($tables[$file_table['name']]);
+					$query = DB::sql("SHOW CREATE TABLE `$file_table[name]`");
+					if($query->num_rows){
+						$db_table = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
+						if(isset($db_table['error'])){
+							return [
+								'errno' =>2,
+								'error' => "Parse Error in database table `$db_table[name]`: $db_table[error]"
+							];
+						}
+						$diff = $this->compare_tables($file_table, $db_table);
+						if(!empty($diff['columns'])) $intersection_columns[$file_table['name']] = $diff['columns'];
+						if(!empty($diff['keys'])) $intersection_keys[$file_table['name']] = $diff['keys'];
+						if(!empty($diff['options'])) $intersection_options[$file_table['name']] = $diff['options'];
+						$queries = $this->generate_alter_queries($file_table['name'], $diff);
+						if(!empty($queries)) $alter_queries[$file_table['name']] = $queries;
+					}
+				} else {
+					$file_only_tables[$file_table['name']] = trim($stmt).';';
+				}
+			}
+			$db_only_tables = array_keys($tables);
+			$results['files'][$filename] = [
+				'errno' => 0,
+				'tables_in_database_only' => $db_only_tables,
+				'tables_in_file_only' => $file_only_tables,
+				'intersection_columns' => $intersection_columns,
+				'intersection_keys' => $intersection_keys,
+				'intersection_options' => $intersection_options,
+				'drop_queries' => $this->build_drop_query($db_only_tables, $dbname),
+				'create_queries' => $file_only_tables,
+				'alter_queries' => $alter_queries
+			];
+		}
+		return $results;
+	}
+
+	private function compare_tables($file_table, $db_table){
+		$db_key = 't1';
+		$file_key = 't2';
+		$file_columns = [];
+		$file_keys = [];
+
+		// FIXME : avoid duplicate "AFTER" moves
+
+		$file_ordinals = [];
+
+		foreach($file_table['columns'] as $col){
+			if($col['type'] == 'column'){
+				$col = $this->convert_to_format_A($col); //compatibility with web diffview
+				$file_ordinals[$col['colname']] = $col['ordinal_number'];
+				unset($col['ordinal_number']);
+				$file_columns[$col['colname']] = $col;
+			} elseif($col['type'] == 'index'){
+				unset($col['type']); //compatibility with web diffview
+				$col['cols'] = array_map(['SQLFile','encode_index_column'], $col['index_columns']);
+				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : implode(', ',$col['cols']));
+				if(isset($file_keys[$name])){
+					$i = 1;
+					$basename = $name;
+					while(isset($file_keys[$name])){
+						$name = "$basename,$i";
+						$i++;
+					}
+				}
+				$file_keys[$name] = $col;
+			}
+		}
+
+		$db_ordinals = [];
+		$file_to_db_order_offset = 0;
+		$out_of_order = [];
+		$columns = [];
+		$keys = [];
+		foreach($db_table['columns'] as $col){
+			if($col['type'] == 'column'){
+				$col = $this->convert_to_format_A($col); //compatibility with web diffview
+				$name = $col['colname'];
+				if($file_to_db_order_offset || $col['after'] != $file_columns[$name]['after']){
+					$search = array_search($col['ordinal_number'],$file_ordinals);
+					if(in_array($search,$out_of_order)) $file_to_db_order_offset -= 1;
+				}
+				if($file_ordinals[$name] + $file_to_db_order_offset != $col['ordinal_number']){
+					if($file_ordinals[$name] > $col['ordinal_number']){
+						if($file_ordinals[$file_columns[$name]['after']] + $file_to_db_order_offset == $col['ordinal_number']){
+							// a column was moved to the ordinal position of this column
+							$out_of_order[] = $file_columns[$name]['after'];
+							$file_to_db_order_offset -= 1;
+						} else {
+							// this column was moved to later in the order
+							$out_of_order[] = $name;
+							$file_to_db_order_offset += 1;
+						}
+					}
+				}
+				
+				$db_ordinals[$name] = $col['ordinal_number'];
+				unset($col['ordinal_number']);
+				if(!isset($file_columns[$name])) $columns[$name] = [$db_key=>$col];
+				else {
+					if($col['after'] != $file_columns[$name]['after']
+						&& !in_array($name, $out_of_order)){
+						unset($col['after']);
+						unset($file_columns[$name]['after']);
+					}
+					if($col != $file_columns[$name]) $columns[$name] = [$db_key=>$col,$file_key=>$file_columns[$name]];
+					unset($file_columns[$name]);
+				}
+			} elseif($col['type'] == 'index'){
+				unset($col['type']); //compatibility with web diffview
+				$col['cols'] = array_map(['SQLFile','encode_index_column'], $col['index_columns']);
+				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : implode(', ',$col['cols']));
+				if(!isset($file_keys[$name])) $keys[$name] = [$db_key=>$col];
+				else {
+					if($col != $file_keys[$name]) $keys[$name] = [$db_key=>$col,$file_key=>$file_keys[$name]];
+					unset($file_keys[$name]);
+				}
+			}
+		}
+		foreach($file_columns as $name => $col){
+			$columns[$name] = [$file_key=>$col];
+		}
+		foreach($file_keys as $name => $col){
+			$keys[$name] = [$file_key=>$col];
+		}
+		$options = [];
+		$ignore_db_only_options = ['AUTO_INCREMENT'];
+		foreach($db_table['table_options'] as $key => $value){
+			if(!isset($file_table['table_options'][$key])){
+				if(!in_array($key, $ignore_db_only_options)) $options[$key] = [$db_key=>$value];
+			} elseif($file_table['table_options'][$key] != $value) $options[$key] = [$db_key=>$value,$file_key=>$file_table['table_options'][$key]];
+		}
+		foreach($file_table['table_options'] as $key => $value){
+			if(!isset($db_table['table_options'][$key])) $options[$key] = [$file_key=>$value];
+		}
+		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options];
+	}
+
+	private function convert_to_format_A($old_col){
+		switch($old_col['nullity']){
+			case 'NOT NULL': $nullable = 'NO'; break;
+			case 'NULL': $nullable = 'YES'; break;
+			default: $nullable = 'YES '; //hack to make default visually identical to NULL, but still be treated as undefined in detection
+		}
+		$new_col = [
+			'colname'=>$old_col['name'],
+			'nullable'=>$old_col['nullity'] == 'NULL' ? 'YES' : ($old_col['nullity'] == 'NOT NULL' ? 'NO' : 'YES '),
+			'data_type'=>$old_col['datatype']['name']
+		];
+		if(isset($old_col['default'])) $new_col['default'] = $old_col['default'];
+		if(isset($old_col['datatype']['char_max_length'])) $new_col['char_max_length'] = $old_col['datatype']['char_max_length'];
+		if(isset($old_col['datatype']['precision'])) $new_col['num_precision'] = $old_col['datatype']['precision'];
+		if(isset($old_col['datatype']['decimals'])) $new_col['num_scale'] = $old_col['datatype']['decimals'];
+		if(isset($old_col['datatype']['character set'])) $new_col['char_set'] = $old_col['datatype']['character set'];
+		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
+
+		$new_col['type'] = SQLFile::encode_datatype($old_col['datatype']);
+
+		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
+		if(isset($old_col['comment'])){
+			$new_col['comment'] = $old_col['comment'];
+			$len = strlen($new_col['comment']);
+			if($new_col['comment'][0] == "'" && $new_col['comment'][$len-1] == "'"){
+				$new_col['comment'] = substr($new_col['comment'], 1, -1);
+			}
+		}
+
+		$new_col['after'] = $old_col['after'];
+		$new_col['ordinal_number'] = $old_col['ordinal_number'];
+
+		return $new_col;
+	}
+
+	private function format_A_to_def($col){
+		$def = "`$col[colname]` $col[type]";
+		if($col['nullable'] == 'NO') $def .= ' NOT NULL';
+		if(isset($col['default'])) $def .= " DEFAULT $col[default]";
+		if(isset($col['extra']) && $col['extra'] == 'auto_increment') $def .= ' AUTO_INCREMENT';
+		if(isset($col['comment'])) $def .= " COMMENT '$col[comment]'";
+		return $def;
+	}
+
+	private function generate_alter_queries($table_name, $table_diff){
+		$drop_keys = [];
+		$alter_columns = [];
+		$add_keys = [];
+		$alter_options = [];
+
+		foreach($table_diff['columns'] as $colname => $diff){
+			if(isset($diff['t1']) && isset($diff['t2'])){
+				// modify
+				$query = "ALTER TABLE `$table_name` MODIFY COLUMN ".$this->format_A_to_def($diff['t2']);
+				if($diff['t1']['after'] != $diff['t2']['after']
+					&& $diff['t1']['ordinal_number'] >= $diff['t2']['ordinal_number']){
+					$query .= $this->build_column_query_after($diff['t2']);
+				}
+			} elseif(isset($diff['t2'])){
+				// add
+				$query = "ALTER TABLE `$table_name` ADD COLUMN ".$this->format_A_to_def($diff['t2']).$this->build_column_query_after($diff['t2']);
+			} elseif(isset($diff['t1'])){
+				// drop
+				$query = "ALTER TABLE `$table_name` DROP COLUMN `$colname`";
+			}
+			$alter_columns[] = $query.';';
+		}
+
+		foreach($table_diff['keys'] as $keyname => $diff){
+			if(isset($diff['t1'])){
+				if($diff['t1']['index_type'] == 'primary'){
+					$drop_keys[] = "ALTER TABLE `$table_name` DROP PRIMARY KEY;";
+				} else {
+					$drop_keys[] = "ALTER TABLE `$table_name` DROP KEY $keyname;";
+				}
+			}
+			if(isset($diff['t2'])){
+				$query = "ALTER TABLE `$table_name` ADD ";
+				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
+				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';
+				$query .= "KEY ";
+				if(isset($diff['t2']['name'])) $query .= $diff['t2']['name'];
+				$query .= '('.implode(',',$diff['t2']['cols']).');';
+				$add_keys[] = $query;
+			}
+		}
+
+		$option_defaults = [
+			'COMMENT' => "''"
+		];
+		foreach($table_diff['options'] as $optname => $diff){
+			if(isset($diff['t2'])){
+				$query = "ALTER TABLE `$table_name` $optname = $diff[t2]";
+			} elseif(isset($option_defaults[$optname])) {
+				$query = "ALTER TABLE `$table_name` $optname = ".$option_defaults[$optname];
+			} else {
+				$query = null;
+			}
+			if(isset($query)) $alter_options[] = $query.';';
+		}
+
+		return array_merge($drop_keys,$alter_columns,$add_keys,$alter_options);
 	}
 
 	public function diff_multi($dbname, $files, $vars = []){
