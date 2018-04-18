@@ -8,7 +8,7 @@ require_once "config.php";
 
 $output = new HealHTML();
 list($head,$body) = $output->html('DBTool');
-$head->css('lib/bootstrap-4.0.0-beta.2-dist/bootstrap.css');
+$head->css('lib/bootstrap-4.1.0-dist/bootstrap.css');
 
 $nav = $body
 	->el('header',['class'=>'navbar navbar-dark bg-dark mb-3'])
