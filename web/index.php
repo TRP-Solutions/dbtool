@@ -26,14 +26,18 @@ foreach($schemapaths as $path){
 }
 $filenames = array_map('basename', $files);
 $name_to_file = array_combine($filenames,$files);
-$filenames = array_combine($filenames,$filenames);
+$actions = [];
+foreach($name_to_file as $filename => $file){
+	$config = json_decode(file_get_contents($file), true);
+	$actions[$filename] = isset($config['name']) ? $config['name']." [$filename]" : $filename;
+}
 
 $form = $header->form('.')->at(['class'=>'mb-3']);
 $form->label('Config file','configselect');
 $group = $form->el('div',['class'=>'input-group']);
 $group->el('span',['class'=>'input-group-btn'])->el('button',['class'=>'btn btn-primary','onclick'=>'form.submit()'])->te('Submit');
 $select = $group->select('config')->at(['class'=>'form-control','id'=>'configselect']);
-$select->options($filenames,isset($_GET['config'])?$_GET['config']:'');
+$select->options($actions,isset($_GET['config'])?$_GET['config']:'');
 
 if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
 	make_body($main,$header,$name_to_file[$_GET['config']]);
