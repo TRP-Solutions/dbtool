@@ -82,11 +82,11 @@ class DB {
 		$database = Config::get('database');
 		if(!isset($database)) $database = '';
 		if(isset($username) && isset($password)){
+			$error_level = error_reporting(0);
 			$mysqli = new mysqli($host, $username, $password, $database);
+			error_reporting($error_level);
 			
-			if($mysqli->connect_error){
-				//Core::msg('error', "Failed to connect to MySQL: {$mysqli->connect_error}");
-			} else {
+			if(!$mysqli->connect_error){
 				self::$isloggedin = true;
 			}
 			$this->mysqli = $mysqli;
