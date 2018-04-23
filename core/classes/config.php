@@ -2,7 +2,7 @@
 class Config {
 	private static $instance;
 	const ALLOWED_KEYS = ['host','user','password','variables','action','schema','database'];
-	const STORE_IN_SESSION = ['host','user','password','database'];
+	const STORE_IN_SESSION = [];
 
 	public static function load($json){
 		if(is_string($json)) $json = json_decode($json);

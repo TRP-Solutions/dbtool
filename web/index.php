@@ -67,17 +67,36 @@ if(isset($_GET['dbconnect'])){
 	$select->options($actions,isset($_GET['config'])?$_GET['config']:'');
 
 	if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
-		make_body($main,$header,$name_to_file[$_GET['config']]);
+		$path = realpath($name_to_file[$_GET['config']]);
+		$basedir = dirname($path);
+		list($config,$error) = Core::load_file($path);
+		if(isset($error)){
+			error_message($main, $error);
+		} elseif(!empty($config['batch']) && is_array($config['batch'])){
+			$batch = $config['batch'];
+			unset($config['batch']);
+			foreach($batch as $action){
+				$action_config = [];
+				foreach($config as $key => $value){
+					$action_config[$key] = $value;
+				}
+				foreach($action as $key => $value){
+					$action_config[$key] = $value;
+				}
+				$break = make_body($main,$header,$action_config,$basedir);
+				if($break) break;
+			}
+		} else {
+			make_body($main,$header,$config,$basedir);
+		}
 	}
 }
 
 echo $output;
 
-function make_body($body,$header,$path){
+function make_body($body,$header,$json,$basedir){
 	$confdiv = $body->el('div');
-	$path = realpath($path);
-	$basedir = dirname($path);
-	list($json,$error) = Core::load_file($path);
+	
 	if(isset($_SESSION['dbusername'])){
 		$overwritten_user = !isset($json['user']) || $json['user'] == $_SESSION['dbusername'] ? null : $json['user'];
 		$overwritten_password = !isset($json['password']) || $json['password'] == $_SESSION['dbpassword'] ? null : $json['password'];
@@ -89,21 +108,18 @@ function make_body($body,$header,$path){
 		if(!isset($_SESSION['dbusername'])){
 			form_connect($confdiv, $json['user']);
 		} else {
-			$msg = $confdiv->el('div',['class'=>'alert alert-danger','role'=>'alert']);
-			$msg->te("Connection Error: Could not connect to database as ");
-			$msg->el('em')->te($json['user']);
-			$msg->te(!isset($json['password'])?' with no password.':' using a password.');
+			$msg = "Connection Error: Could not connect to database as \"$json[user]\"";
+			$msg .= !isset($json['password']) ? ' with no password.' : ' using a password.';
+			$submsgs = [];
 			if(isset($overwritten_user)){
-				$submsg = $confdiv->el('div',['class'=>'alert alert-info','role'=>'alert']);
-				$submsg->te(" The configuration suggests the username ")->el('em')->te($overwritten_user);
-				$submsg->te('.');
+				$submsgs[] = "The configuration suggests the username \"$overwritten_user\".";
 			}
 			if(isset($overwritten_password)){
-				$submsg = $confdiv->el('div',['class'=>'alert alert-info','role'=>'alert']);
-				$submsg->te(" You have supplied a different password than what is specified in the configuration. Disconnecting from the database (in the navigation bar) might help.");
+				$submsgs[] = "You have supplied a different password than what is specified in the configuration. Disconnecting from the database (in the navigation bar) might help.";
 			}
+			error_message($confdiv, $msg, ...$submsgs);
 		}
-		return;
+		return 1;
 	}
 	$result = Core::run();
 
@@ -114,13 +130,15 @@ function make_body($body,$header,$path){
 		if(isset($_GET['execute'])){
 			$result['obj']->execute();
 			$result['action'] .= '_execute';
-		}
-
-		$schemas = Config::get('schema');
-		if(isset($schemas)){
-			if(is_string($schemas)) $schemas = [$schemas];
-			$schemas = array_map(function($s){return preg_replace("|^[./]+|",'',$s);}, $schemas);
-			HTML::itemize($body, $schemas, 'Schemas');
+		} else {
+			$schemas = Config::get('schema');
+			if(isset($schemas)){
+				if(is_string($schemas)) $schemas = [$schemas];
+				$schemas = array_map(function($s){return preg_replace("|^[./]+|",'',$s);}, $schemas);
+				$db = Config::get('database');
+				$title = empty($db) ? "Files" : "Comparing database `$db` with files";
+				HTML::itemize($body, $schemas, $title);
+			}
 		}
 		
 		$dbmsg = DB::get_messages();
@@ -136,24 +154,22 @@ function make_body($body,$header,$path){
 				}
 			}
 			$header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
-		} elseif($result['action']=='permission_execute'){
-			$card = $body->el('div',['class'=>'card']);
+		} elseif($result['action']=='diff'){
+			$diffs_found = DiffView::build($body, $result['result']);
+			if($diffs_found) $header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
+		} elseif($result['action']=='permission_execute' || $result['action']=='diff_execute'){
+			$card = $body->el('div',['class'=>'card mb-3']);
 			$alert = $card->el('div',['class'=>'card-header text-light bg-success h3']);
 			$lines = 0;
 			$pre = $card->el('pre',['class'=>'card-body text-light bg-dark m-0']);
 			foreach($result['result']['files'] as $file){
-				foreach($file['sql'] as $sql){
+				if(!empty($file['sql'])) foreach($file['sql'] as $sql){
 					$pre->te($sql."\n");
 					$lines++;
 				}
 			}
-			$alert->te("Executed $lines SQL statements");
-		} elseif($result['action']=='diff'){
-			$diffs_found = DiffView::build($body, $result['result']);
-			if($diffs_found) $header->el('a',['href'=>'.?config='.$_GET['config'].'&execute','class'=>'btn btn-warning mb-3'])->te('Execute');
-		} elseif($result['action']=='diff_execute'){
-			$body->p('The following SQL was executed:');
-			DiffView::build($body, $result['result'], true);
+			$db = Config::get('database');
+			$alert->te("Executed $lines SQL statements".(empty($db) ? '' : " on database `$db`"));
 		} else {
 			$body->el('pre')->te(json_encode($result));
 		}
@@ -177,6 +193,15 @@ function form_connect($parent, $suggested_username = null){
 	$group->label('Database Password','dbpassword');
 	$group->password('dbpassword')->at(['class'=>'form-control']);
 	$form->el('button',['class'=>'btn btn-primary','type'=>'submit'])->te('Connect');
+}
+
+function error_message($parent, $message, ...$submessages){
+	$msg = $parent->el('div',['class'=>'alert alert-danger','role'=>'alert']);
+	$msg->te($message);
+	foreach($submessages as $submessage){
+		$msg = $parent->el('div',['class'=>'alert alert-info','role'=>'alert']);
+		$msg->te($submessage);
+	}
 }
 
 ?>

@@ -63,48 +63,27 @@ foreach($long_options as $name => $type){
 	elseif(!isset($config[$name])) $config[$name] = false;
 }
 if(isset($options['schema'])) $config['schema'] = $options['schema'];
-if($config['action'] != 'diff' && $config['action'] != 'permission') help(); //help exits
+if($config['action'] != 'diff' && $config['action'] != 'permission' && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
 
 $config['user'] = $config['user']!==false ? $config['user'] : get_current_user();
 if($config['password'] === true) $config['password'] = ask_for_password();
 
-switch(Core::load_json($config, $configdir)){
-	case 'wrong_credentials': fail("Connection Error: Username or password incorrect", 2); break;
-}
-
-$core = Core::run();
-if(!isset($core['obj'])){
-	fail("Invalid action: $core[action]",3);
-}
-if(isset($core['obj']->error)) fail("Core Error: ({$core['obj']->error})",4);
-if(VERBOSE) echo "Action: [$core[action]]\n";
-if($core['action']=='diff') show_diff($core['result']);
-elseif($core['action']=='permission') show_permission($core['result']);
-
-if(TEST_RUN) echo "[Test run, skipping execution]\n";
-elseif($config['execute'] && ($config['force'] || ask_continue())){
-	$options = 0;
-	if($core['action']=='diff'){
-		if(!$config['no-alter']) $options |= CoreDiff::ALTER;
-		if(!$config['no-create']) $options |= CoreDiff::CREATE;
-		if(!$config['no-drop']) $options |= CoreDiff::DROP;
-	}
-	$lines = $core['obj']->execute($options);
-	if(VERBOSE){
-		echo "Execution:\n";
-		if($lines){
-			$messages = DB::get_messages();
-			if(empty($messages)){
-				echo "$lines SQL lines executed without errors.\n";
-			} else {
-				echo "The following errors was encountered:\n";
-				foreach($messages as $msg) echo "$msg[text]\n";
-			}
-		} else {
-			echo "No SQL lines were executed.\n";
+if(isset($config['batch']) && is_array($config['batch'])){
+	$batch = $config['batch'];
+	unset($config['batch']);
+	foreach($batch as $action){
+		$action_config = [];
+		foreach($config as $key => $value){
+			$action_config[$key] = $value;
 		}
+		foreach($action as $key => $value){
+			$action_config[$key] = $value;
+		}
+		run_with_config($action_config, $configdir);
 	}
+} else {
+	run_with_config($config, $configdir);
 }
 exit;
 
@@ -160,6 +139,47 @@ function ask_for_password(){
 	return $pw;
 }
 
+function run_with_config($config, $configdir){
+	switch(Core::load_json($config, $configdir)){
+		case 'wrong_credentials': fail("Connection Error: Username or password incorrect", 2); break;
+	}
+
+	$core = Core::run();
+	if(!isset($core['obj'])){
+		fail("Invalid action: $core[action]",3);
+	}
+	if(isset($core['obj']->error)) fail("Core Error: ({$core['obj']->error})",4);
+	if(VERBOSE) echo "Action: [$core[action]]\n";
+	if($core['action']=='diff') $changes = show_diff($core['result']);
+	elseif($core['action']=='permission') $changes = show_permission($core['result']);
+	else $changes = false;
+
+	if(TEST_RUN) echo "[Test run, skipping execution]\n";
+	elseif($changes && $config['execute'] && ($config['force'] || ask_continue("Do you want to execute changes on database `".Config::get('database')."`?"))){
+		$options = 0;
+		if($core['action']=='diff'){
+			if(!$config['no-alter']) $options |= CoreDiff::ALTER;
+			if(!$config['no-create']) $options |= CoreDiff::CREATE;
+			if(!$config['no-drop']) $options |= CoreDiff::DROP;
+		}
+		$lines = $core['obj']->execute($options);
+		if(VERBOSE){
+			echo "Execution:\n";
+			if($lines){
+				$messages = DB::get_messages();
+				if(empty($messages)){
+					echo "$lines SQL lines executed without errors.\n";
+				} else {
+					echo "The following errors was encountered:\n";
+					foreach($messages as $msg) echo "$msg[text]\n";
+				}
+			} else {
+				echo "No SQL lines were executed.\n";
+			}
+		}
+	}
+}
+
 function show_permission($result){
 	$files = [];
 	foreach($result['files'] as $file){
@@ -167,7 +187,8 @@ function show_permission($result){
 		$files[] = $file;
 	}
 	$count = count($files);
-	echo "Found differences in $count file(s):\n";
+	$db = Config::get('database');
+	echo "Found differences from database `$db` in $count file(s):\n";
 	foreach($files as $file){
 		echo "\t".$file['title']."\n";
 		if(VERBOSE){
@@ -175,6 +196,7 @@ function show_permission($result){
 			echo implode("\n\t\t",$file['sql'])."\n";
 		}
 	}
+	return $count != 0;
 }
 
 function show_diff($rs){
@@ -186,7 +208,8 @@ function show_diff($rs){
 		$title_printed = false;
 		$print_title = function() use ($filename, &$title_printed){
 			if(!$title_printed){
-				echo "\nFrom file: $filename\n\n";
+				$db = Config::get('database');
+				echo "\nComparing database `$db` with file '$filename'\n\n";
 				$title_printed = true;
 			}
 		};
@@ -259,9 +282,10 @@ function show_diff($rs){
 	}
 
 	if(!$differences_found){
-		echo "No differences found.\n";
-		exit;
+		$db = Config::get('database');
+		echo "No differences between `$db` and file(s).\n";
 	}
+	return $differences_found;
 }
 
 function show_nonempty_keys($name, $array){

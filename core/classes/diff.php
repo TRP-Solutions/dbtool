@@ -93,6 +93,7 @@ SQL;
 
 	public function diff_sql($dbname, $files, $vars = []){
 		$results = ['errno'=>0,'files'=>[]];
+		DB::sql("USE $dbname;");
 		$tables = $this->list_tables($dbname);
 		$tables = array_combine($tables,$tables);
 		foreach($files as $filename){
