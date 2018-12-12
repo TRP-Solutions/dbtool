@@ -1,0 +1,7 @@
+{
+	"name": "Example simple config",
+	"user": "username",
+	"database": "test",
+	"files": ["path/to/schema/file.sql"],
+	"variables": {"VAR": "value"}
+}

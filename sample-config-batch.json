@@ -1,0 +1,19 @@
+{
+	"name": "Example batch config",
+	"host": "localhost",
+	"user": "username",
+	"password": "XXX",
+	"batch": [
+		{
+			"database": "foo",
+			"files": ["path/to/schema/file.sql"],
+			"variables": {"VAR": "value"}
+		},
+		{
+			"database": "bar",
+			"files": ["path/to/schema/file.sql"],
+			"variables": {"VAR": "value"}
+		}
+	]
+	
+}
