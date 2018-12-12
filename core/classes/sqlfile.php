@@ -60,31 +60,35 @@ class SQLFile {
 		}
 		$this->filename = $filepath;
 		$this->exists = isset($filepath) && is_file($filepath);
-		$this->vars = $vars;
+		$this->vars = is_array($vars) ? $vars : [];
+	}
+
+	public function get_filename(){
+		return $this->filename;
 	}
 
 	private function parse_line($line){
 		$line = explode('--', $line, 2)[0];
 		$line = explode('#', $line, 2)[0];
-		$fragments = explode(';', $line, 2);
-		if(!$fragments){
-			return ['end' => false, 'str' => ''];
+
+		$in_single = false;
+		$in_double = false;
+		$len = strlen($line);
+		for($i = 0; $i < $len; $i++){
+			if($line[$i] == '\'' && !$in_double) $in_single = !$in_single;
+			elseif($line[$i] == '"' && !$in_single) $in_double = !$in_double;
+			elseif($line[$i] == ';' && !$in_single && !$in_double) break;
 		}
-		$count = count($fragments);
-		$result = ['end' => $count == 2];
-		if($count >= 1){
-			$result['str'] = $fragments[0];
-		}
-		if($count == 2){
-			$result['rest'] = $fragments[1];
-		}
+		$result = ['str'=>substr($line, 0, $i), 'rest'=>substr($line, $i+1), 'end'=>isset($line[$i]) && $line[$i] == ';'];
 		return $result;
 	}
 
 	private function get_next_statement($stream){
 		$statement = array();
 		$result = $this->parse_line($this->str_buffer);
-		$statement[] = $result['str'];
+		if(!empty($result['str'])){
+			$statement[] = $result['str'];
+		}
 		while(!$result['end']){
 			$line = fgets($stream);
 			if(!$line){
@@ -468,6 +472,7 @@ class SQLFile {
 
 			if(in_array($type, $type_inty)){
 				if(self::match_token($tokens,'UNSIGNED')) $coldesc['datatype']['unsigned'] = true;
+				elseif(self::match_token($tokens,'SIGNED')) $coldesc['datatype']['unsigned'] = false;
 				if(self::match_token($tokens,'ZEROFILL')) $coldesc['datatype']['zerofill'] = true;
 			} elseif(in_array($type, $type_stringy)){
 				if(self::match_token($tokens,'CHARACTER')){
@@ -772,8 +777,8 @@ class SQLFile {
 		if(isset($datatype['values'])){
 			$str .= " (".implode(', ',$datatype['values']).')';
 		}
-		if(isset($datatype['unsigned'])) $str .= " UNSIGNED";
-		if(isset($datatype['zerofill'])) $str .= " ZEROFILL";
+		if(isset($datatype['unsigned']) && $datatype['unsigned']) $str .= " UNSIGNED";
+		if(isset($datatype['zerofill']) && $datatype['zerofill']) $str .= " ZEROFILL";
 		if(isset($datatype['character set'])) $str .= " CHARACTER SET ${datatype['character set']}";
 		if(isset($datatype['collate'])) $str .= " COLLATE $datatype[collate]";
 		return $str;
@@ -781,8 +786,8 @@ class SQLFile {
 
 	public static function encode_index_column($col){
 		$str = $col['name'];
-		if(isset($col['size'])) $str .= "($col[size])";
-		if(isset($col['sort'])) $str .= " $col[sort]";
+		if(!empty($col['size'])) $str .= "($col[size])";
+		if(!empty($col['sort'])) $str .= " $col[sort]";
 		return $str;
 	}
 }

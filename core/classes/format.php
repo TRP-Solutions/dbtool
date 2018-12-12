@@ -1,0 +1,188 @@
+<?php
+class Format {
+	public static function prettify_create_table($sql){
+		$result = '';
+		$depth = 0;
+		$arr = str_split($sql);
+		$len = count($arr);
+		$debug = '';
+		foreach($arr as $i => $c){
+			if($depth == 0 && $c == '(' || $depth == 1 && $c == ','){
+				$result .= $c."\n  ";
+				$depth += 1;
+				continue;
+			} elseif($depth == 1){
+				if($c == '(') $depth++;
+				elseif($c == ')'){
+					$depth = 0;
+					$result .= "\n".substr($sql, $i);
+					break;
+				}
+			} elseif($depth >= 2 && $c == ')'){
+				$depth-=1;
+			}
+			$result .= $c;
+		}
+		return $result;
+	}
+
+	public static function diff_to_display($data){
+		$error_cards = [];
+		$intersection_cards = [];
+		$file_only_cards = [];
+		$database_only_cards = [];
+		if(!empty($data['errors'])){
+			$error_cards[] = [
+				'title'=>'Errors',
+				'display'=>[['list'=>array_map(function($o){return $o['error'];}, $data['errors'])]]
+			];
+		}
+		foreach($data['tables'] as $table){
+			if($table['type']=='intersection'){
+				$display = [];
+				if(!empty($table['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($table['columns'])];
+				if(!empty($table['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($table['keys'])];
+				if(!empty($table['options'])) $display[] = ['title'=>'Options','table'=>self::table_options_to_display($table['options'])];
+				if(!empty($table['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($table['permissions'])];
+				if(!empty($display)) $intersection_cards[] = [
+					'title'=>$table['name'],
+					'display'=>$display,
+					'sql'=>$table['sql']
+				];
+			} elseif($table['type']=='file_only'){
+				$file_only_cards[] = [
+					'title'=>$table['name'],
+					'subtitle'=>'File Only: "'.implode('"; "',$table['sourcefiles']).'"',
+					'sql'=>$table['sql']
+				];
+			}	
+		}
+		if(!empty($data['db_only_tables'])){
+			$database_only_cards[] = [
+				'title'=>'Tables only in database',
+				'display'=>[['list'=>$data['db_only_tables']]],
+				'sql'=>$data['drop_queries']
+			];
+		}
+		return array_merge($error_cards,$intersection_cards,$file_only_cards,$database_only_cards);
+	}
+
+	public static function table_columns_to_display($data){
+		$output = [];
+		foreach($data as $colname => $diff){
+			foreach($diff as $source => $row){
+				$rowdata = [
+					'location' => $source=='t1' ? "Database" : "Schemafile"
+				];
+				foreach($row as $key => $value){
+					if($key == 'colname') $key = 'column_name';
+					if(!empty($value)){
+						$rowdata[$key] = $value;
+					}
+				}
+				$output[] = ['data' => $rowdata, 'class' => self::diff_class($diff)];
+			}
+		}
+		return $output;
+	}
+
+	public static function table_keys_to_display($data){
+		$output = [];
+		foreach($data as $keyname => $diff){
+			foreach($diff as $source => $row){
+				$output[] = ['data' => [
+					'location'=> $source=='t1' ? "Database" : "Schemafile",
+					'keyname'=> $keyname,
+					'columns'=> implode(', ', $row['cols']),
+					'non_unique'=> $row['non_unique']
+				], 'class' => self::diff_class($diff)];
+			}
+		}
+		return $output;
+	}
+
+	public static function table_options_to_display($data){
+		$output = [];
+		foreach($data as $optionname => $diff){
+			$output[] = ['data' =>[
+				'option_mismatch'=>$optionname,
+				'database'=> isset($diff['t1']) ? $diff['t1'] : '',
+				'schemafile'=> isset($diff['t2']) ? $diff['t2'] : ''
+			], 'class' => self::diff_class($diff)];
+		}
+		return $output;
+	}
+
+	public static function table_permissions_to_display($data){
+		return $data;
+	}
+
+	public static function column_description_to_A($old_col){
+		$new_col = [
+			'colname'=>$old_col['name'],
+			'nullable'=>$old_col['nullity'] == 'NOT NULL' ? 'NO' : 'YES',
+			'data_type'=>$old_col['datatype']['name']
+		];
+		if(isset($old_col['default'])) $new_col['default'] = $old_col['default'];
+		elseif($new_col['nullable']=='YES') $new_col['default'] = 'NULL';
+		if(isset($old_col['datatype']['char_max_length'])) $new_col['char_max_length'] = $old_col['datatype']['char_max_length'];
+		if(isset($old_col['datatype']['precision'])) $new_col['num_precision'] = $old_col['datatype']['precision'];
+		if(isset($old_col['datatype']['decimals'])) $new_col['num_scale'] = $old_col['datatype']['decimals'];
+		if(isset($old_col['datatype']['character set'])) $new_col['char_set'] = $old_col['datatype']['character set'];
+		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
+
+		$new_col['type'] = SQLFile::encode_datatype($old_col['datatype']);
+
+		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
+		if(isset($old_col['comment'])){
+			$new_col['comment'] = $old_col['comment'];
+			$len = strlen($new_col['comment']);
+			if($new_col['comment'][0] == "'" && $new_col['comment'][$len-1] == "'"){
+				$new_col['comment'] = substr($new_col['comment'], 1, -1);
+			}
+		}
+
+		$new_col['after'] = $old_col['after'];
+		$new_col['ordinal_number'] = $old_col['ordinal_number'];
+
+		return $new_col;
+	}
+
+	public static function column_A_to_definition($col){
+		$def = "`$col[colname]` $col[type]";
+		if($col['nullable'] == 'NO') $def .= ' NOT NULL';
+		if(isset($col['default'])) $def .= " DEFAULT $col[default]";
+		if(isset($col['extra']) && $col['extra'] == 'auto_increment') $def .= ' AUTO_INCREMENT';
+		if(isset($col['comment'])) $def .= " COMMENT '$col[comment]'";
+		return $def;
+	}
+
+	public static function grant_row_to_description($row){
+		$ignore_host = defined('PERMISSION_IGNORE_HOST') && PERMISSION_IGNORE_HOST;
+		if($ignore_host){
+			$grantee = explode('@',$row['GRANTEE'])[0];
+		} else {
+			$grantee = $row['GRANTEE'];
+		}
+		$key = 'grant:'.$grantee.':`'.$row['TABLE_SCHEMA'].'`.`'.$row['TABLE_NAME'].'`';
+		if(isset($row['COLUMN_NAME'])){
+			$priv_types = [$row['PRIVILEGE_TYPE'] => ['priv_type'=>$row['PRIVILEGE_TYPE'],'column_list'=>[$row['COLUMN_NAME']]]];
+		} else {
+			$priv_types = [$row['PRIVILEGE_TYPE'] => $row['PRIVILEGE_TYPE']];
+		}
+		$desc = [
+			'type' => 'grant',
+			'key' => $key,
+			'priv_types' => $priv_types,
+			'database' => '`'.$row['TABLE_SCHEMA'].'`',
+			'table' => '`'.$row['TABLE_NAME'].'`',
+			'user' => $grantee
+		];
+		return $desc;
+	}
+
+	private static function diff_class($diff){
+		return isset($diff['t1']) ? (isset($diff['t2']) ? 'bg-info' : 'bg-danger') : 'bg-success';
+	}
+}
+?>

@@ -5,9 +5,8 @@ require_once __DIR__.'/core.php';
 class DB {
 	private static $instance;
 	public static $isloggedin = false;
-	private static $username;
-	private static $database;
 	private static $messages = [];
+	private static $db_in_use;
 
 	public static function login(){
 		if(!isset(self::$instance)){
@@ -62,6 +61,14 @@ class DB {
 			self::msg('error', 'SQL error: '.$mysqli->error);
 		}
 		return $result;
+	}
+
+	public static function use_configured(){
+		$db = Config::get('database');
+		if((!isset($db_in_use) || $this->$db_in_use != $db) && !empty($db)){
+			$dbname = self::escape($db);
+			self::sql("USE $dbname");
+		}
 	}
 
 	public static function get_messages(){

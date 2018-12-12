@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__."/../core/classes/core.php";
 
+function debug($msg){
+	echo json_encode($msg,JSON_PRETTY_PRINT)."\n";
+}
+
 session_start();
 
 define('OPTION_VOID',0);
@@ -10,7 +14,6 @@ define('OPTION_REQUIRES_VALUE',3); // 0b01 + 0b10, combined OPTION_TAKES_VALUE &
 define('OPTION_REQUIRES_KEY_VALUE',4);
 $long_options = [
 	'help'=>OPTION_VOID,
-	'action'=>OPTION_REQUIRES_VALUE,
 	'execute'=>OPTION_VOID,
 	'force'=>OPTION_VOID,
 	'password'=>OPTION_TAKES_VALUE,
@@ -26,7 +29,6 @@ $long_options = [
 ];
 $short_options = [
 	'h'=>'help',
-	'a'=>'action',
 	'e'=>'execute',
 	'f'=>'force',
 	'p'=>'password',
@@ -63,56 +65,37 @@ foreach($long_options as $name => $type){
 	elseif(!isset($config[$name])) $config[$name] = false;
 }
 if(isset($options['schema'])) $config['schema'] = $options['schema'];
-if($config['action'] != 'diff' && $config['action'] != 'permission' && empty($config['batch'])) help(); //help exits
+if(empty($config['files']) && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
 
 $config['user'] = $config['user']!==false ? $config['user'] : get_current_user();
 if($config['password'] === true) $config['password'] = ask_for_password();
 
-if(isset($config['batch']) && is_array($config['batch'])){
-	$batch = $config['batch'];
-	unset($config['batch']);
-	foreach($batch as $action){
-		$action_config = [];
-		foreach($config as $key => $value){
-			$action_config[$key] = $value;
-		}
-		foreach($action as $key => $value){
-			$action_config[$key] = $value;
-		}
-		run_with_config($action_config, $configdir);
-	}
-} else {
-	run_with_config($config, $configdir);
-}
+run_config($config, $configdir);
 exit;
 
 function help(){
 echo <<<'HELP'
 Usage:
-php dbtool.php [OPTIONS] --action=[diff|permission] SCHEMAFILE [SCHEMAFILE...]
+php dbtool.php [OPTIONS] SCHEMAFILE [SCHEMAFILE...]
 php dbtool.php [OPTIONS] --config=CONFIGFILE
 
 General Options:
   -h, --help                       Displays this help text.
 
-  -aVALUE, --action=VALUE          Specify the action used, supported actions are 'diff' and 'permission'.
   -cVALUE, --config=VALUE          Loads a config file.
+  -dVALUE, --database=VALUE        An execution will use the given database, if a database isn't specified in the schemafile.
   -e, --execute                    Run the generated SQL to align the database with the provided schema.
   -f, --force                      Combined with -e: Run any SQL without asking first.
+  --no-alter                       An execution will not include ALTER statements.
+  --no-create                      An execution will not include CREATE statements.
+  --no-drop                        An execution will not include DROP statements.
   -p[VALUE], --password[=VALUE]    Use given password or if not set, request password before connecting to the database.
   -uVALUE, --user=VALUE            Use the given username when connecting to the database.
   -v, --verbose                    Write extra descriptive output.
   -wKEY=VALUE, --var KEY=VALUE     Define a variable to be inserted in the schema.
 
   --test                           Run everything as usual, but without executing any SQL.
-
-Diff Specific Options:
-  -dVALUE, --database=VALUE        An executed diff will use the given database, if a database isn't specified in the schemafile.
-  --no-alter                       An executed diff will not include ALTER statements.
-  --no-create                      An executed diff will not include CREATE statements.
-  --no-drop                        An executed diff will not include DROP statements.
-
 
 HELP;
 exit;
@@ -139,166 +122,127 @@ function ask_for_password(){
 	return $pw;
 }
 
-function run_with_config($config, $configdir){
-	switch(Core::load_json($config, $configdir)){
-		case 'wrong_credentials': fail("Connection Error: Username or password incorrect", 2); break;
-	}
+function run_config($config, $configdir){
+	list($objs, $error) = Core::load_and_run($config, $configdir);
+	if($error == 'login_error') fail("Connection Error: Username or password incorrect", 2);
 
-	$core = Core::run();
-	if(!isset($core['obj'])){
-		fail("Invalid action: $core[action]",3);
-	}
-	if(isset($core['obj']->error)) fail("Core Error: ({$core['obj']->error})",4);
-	if(VERBOSE) echo "Action: [$core[action]]\n";
-	if($core['action']=='diff') $changes = show_diff($core['result']);
-	elseif($core['action']=='permission') $changes = show_permission($core['result']);
-	else $changes = false;
-
-	if(TEST_RUN) echo "[Test run, skipping execution]\n";
-	elseif($changes && $config['execute'] && ($config['force'] || ask_continue("Do you want to execute changes on database `".Config::get('database')."`?"))){
-		$options = 0;
-		if($core['action']=='diff'){
-			if(!$config['no-alter']) $options |= CoreDiff::ALTER;
-			if(!$config['no-create']) $options |= CoreDiff::CREATE;
-			if(!$config['no-drop']) $options |= CoreDiff::DROP;
+	$successful_results = [];
+	$error_printed = false;
+	$num = 0;
+	foreach($objs as $obj){
+		$num++;
+		if(!empty($obj->error)){
+			$batch_name = count($objs) > 1 ? "batch #$num" : 'config';
+			echo "Error in $batch_name: $obj->error\n";
+			$error_printed = true;
+			continue;
 		}
-		$lines = $core['obj']->execute($options);
-		if(VERBOSE){
-			echo "Execution:\n";
-			if($lines){
-				$messages = DB::get_messages();
-				if(empty($messages)){
-					echo "$lines SQL lines executed without errors.\n";
+		$result = $obj->get_result();
+		if(!show_error($result)) $successful_results[] = [$result,$obj,Config::get_instance(),$num];
+		else $error_printed = true;
+	}
+
+	if($error_printed && !empty($successful_results)) echo str_repeat('=', 30)."\nProceeding with non-erroring batches.\n\n";
+
+	foreach($successful_results as $pair){
+		list($result,$obj,$config,$batch_number) = $pair;
+		Config::set_instance($config);
+		$batch_msg = "Batch $batch_number";
+		$db = Config::get('database');
+		if(!empty($db)){
+			$batch_msg .= ", using database `$db`";
+		}
+		echo box($batch_msg);
+		$changes = show_result($result);
+		$database = Config::get('database');
+		if(TEST_RUN) echo "[Test run, skipping execution]\n";
+		elseif($changes && $config['execute'] && ($config['force'] || ask_continue("Do you want to execute changes".(empty($database)?'?':" on database `$database`?")))){
+			$options = 0;
+			if(!$config['no-alter']) $options |= Core::ALTER;
+			if(!$config['no-create']) $options |= Core::CREATE;
+			if(!$config['no-drop']) $options |= Core::DROP;
+			$lines = $obj->execute($options);
+			if(VERBOSE){
+				echo "Execution:\n";
+				if($lines){
+					$messages = DB::get_messages();
+					if(empty($messages)){
+						echo "$lines SQL lines executed without errors.\n";
+					} else {
+						echo "The following errors was encountered:\n";
+						foreach($messages as $msg) echo "$msg[text]\n";
+					}
 				} else {
-					echo "The following errors was encountered:\n";
-					foreach($messages as $msg) echo "$msg[text]\n";
+					echo "No SQL lines were executed.\n";
 				}
-			} else {
-				echo "No SQL lines were executed.\n";
 			}
 		}
 	}
 }
 
-function show_permission($result){
-	$files = [];
-	foreach($result['files'] as $file){
-		if(empty($file['sql'])) continue;
-		$files[] = $file;
-	}
-	$count = count($files);
-	$db = Config::get('database');
-	echo "Found differences from database `$db` in $count file(s):\n";
-	foreach($files as $file){
-		echo "\t".$file['title']."\n";
-		if(VERBOSE){
-			echo "\t\t";
-			echo implode("\n\t\t",$file['sql'])."\n";
-		}
-	}
-	return $count != 0;
-}
-
-function show_diff($rs){
-	if(show_error($rs)) return;
+function show_result($result){
 	global $config;
 
-	$differences_found = false;
-	foreach($rs['files'] as $filename => $result){
-		$title_printed = false;
-		$print_title = function() use ($filename, &$title_printed){
-			if(!$title_printed){
-				$db = Config::get('database');
-				echo "\nComparing database `$db` with file '$filename'\n\n";
-				$title_printed = true;
-			}
-		};
-		if(!empty($result['drop_queries'])){
-			$differences_found = true;
-			$count = count($result['tables_in_database_only']);
-			if($config['no-drop']){
-				if(VERBOSE){
-					$print_title();
-					echo "Ignoring $count table(s) in database.\n";
-				}
-			} else {
-				$print_title();
-				echo "Found $count table(s) in database only:\n\t";
-				echo implode(', ',$result['tables_in_database_only'])."\n";
-				if(VERBOSE){
-					echo "The following drop queries will remove them:\n\t";
-					echo implode("\n\t",$result['drop_queries'])."\n";
-				}
-				echo "\n";
-			}
-		}
-		
-		if(!empty($result['create_queries'])){
-			$differences_found = true;
-			$count = count($result['tables_in_file_only']);
-			if($config['no-create']){
-				if(VERBOSE){
-					$print_title();
-					echo "Ignoring $count table(s) in file.\n";
-				}
-			} else {
-				$print_title();
-				echo "Found $count table(s) in file only:\n\t";
-				echo implode(', ',$result['tables_in_file_only'])."\n";
-				if(VERBOSE){
-					echo "The following create queries will add them:\n";
-					echo implode("\n",array_map('indent_text', $result['create_queries']))."\n";
-				}
-				echo "\n";
-			}
-		}
+	$intersection_tables = [];
+	$file_tables = [];
+	$unknown_types = [];
 
-		if(!empty($result['alter_queries'])){
-			$differences_found = true;
-			if($config['no-alter']){
-				if(VERBOSE){
-					$columns = array_keys(array_filter($result['intersection_columns'],function($e){return !empty($e);}));
-					$keys = array_keys(array_filter($result['intersection_keys'],function($e){return !empty($e);}));
-					$options = array_keys(array_filter($result['intersection_options'],function($e){return !empty($e);}));
-					$count = count(array_unique($columns+$keys+$options));
-					$print_title();
-					echo "Ignoring differences in $count table(s).\n";
-				}
-				
-			} else {
-				$print_title();
-				$array = show_nonempty_keys("table(s) with column differences", $result['intersection_columns']);
-				$array = show_nonempty_keys("table(s) with key differences", $result['intersection_keys']);
-				$array = show_nonempty_keys("table(s) with option differences", $result['intersection_options']);
-				if(VERBOSE){
-					echo "The following alter queries will align them:\n";
-					foreach($result['alter_queries'] as $table => $queries){
-						echo $table.":\n";
-						echo implode("\n",array_map('indent_text', $queries))."\n";
-					}
-				}
-			}
-		}
+	foreach($result['tables'] as $table){
+		if(empty($table['sql'])) continue;
+		if($table['type'] == 'intersection') $intersection_tables[] = $table;
+		elseif($table['type'] == 'file_only') $file_tables[] = $table;
 	}
 
-	if(!$differences_found){
-		$db = Config::get('database');
-		echo "No differences between `$db` and file(s).\n";
+	$no_db = show_result_part($result['db_only_tables'], $result['drop_queries'], $config['no-drop'], 'in database', 'drop queries will remove them');
+	$no_file = show_result_tablelist($file_tables, $config['no-create'], 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
+	$no_intersect = show_result_tablelist($intersection_tables, $config['no-alter'], 'with differences', 'alter queries will align them');
+
+	if($no_db && $no_file && $no_intersect){
+		echo "No differences found.\n\n";
 	}
-	return $differences_found;
 }
 
-function show_nonempty_keys($name, $array){
-	$array = array_filter($array,function($e){return !empty($e);});
-	$count = count($array);
-	if($count == 0) return [];
-	echo "Found $count $name:\n\t";
-	echo implode(', ',array_keys($array))."\n\n";
-	return $array;
+function show_result_tablelist($tables, $ignore, $descriptor, $sql_text, $sql_format = null){
+	$tablenames = array_map(function($t){return $t['name'];}, $tables);
+	$sql = array_map(function($t){return $t['sql'];}, $tables);
+	if(!empty($sql)){
+		$sql = array_merge(...$sql);
+		if(isset($sql_format)) $sql = array_map($sql_format, $sql);
+	}
+	return show_result_part($tablenames, $sql, $ignore, $descriptor, $sql_text);
+}
+
+function show_result_part($tablenames, $sql, $ignore, $descriptor, $sql_text){
+	if(empty($tablenames)) return true;
+
+	$count = count($tablenames);
+	if($ignore){
+		if(VERBOSE) echo "Ignoring $count table(s) $descriptor.\n";
+	} else {
+		echo "Found $count table(s) $descriptor:\n\t";
+		echo implode(', ',$tablenames)."\n\n";
+		if(VERBOSE){
+			echo "The following $sql_text:\n\t";
+			echo implode("\n\t",explode("\n",implode("\n",$sql)))."\n\n";
+		}
+	}
 }
 
 function show_error($result){
-	if($result['errno'] !== 0){
+	if(!empty($result['errors'])){
+		foreach($result['errors'] as $e){
+			echo "Error ($e[errno]): ";
+			if(isset($e['error'])) echo $e['error'];
+			else {
+				echo "Unknown Error\n";
+				debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+			}
+			echo "\n";
+			if(isset($e['sqlerror']))echo $e['sqlerror']."\n";
+		}
+		return true;
+	}
+	if(isset($result['errno']) && $result['errno'] !== 0){
 		echo "Error ($result[errno]): ";
 		if(isset($result['error'])) echo $result['error'];
 		else {
@@ -332,8 +276,11 @@ function ask_continue($msg = null, $default_yes = true){
 	}
 }
 
-function indent_text($text){
-	return "\t".implode("\n\t",explode("\n",$text));
+function box($msg){
+	if(!VERBOSE) return '# '.$msg." #\n";
+	$len = strlen($msg);
+	$line = '#'.str_repeat('-',$len)."#\n";
+	return $line.'|'.$msg."|\n".$line;
 }
 
 function parse_options(){

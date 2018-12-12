@@ -4,67 +4,13 @@ require_once __DIR__.'/permissiondiff.php';
 require_once __DIR__.'/diff.php';
 require_once __DIR__.'/sqlfile.php';
 
-class CoreDiff extends Core {
+class Core {
 	const ALTER = 0b100;
 	const CREATE = 0b010;
 	const DROP = 0b001;
 
-	private $dbname;
-	protected function __construct(){
-		parent::__construct();
-		$this->dbname = Config::get('database');
-		if(empty($this->schemas)) $this->error = 'missing_schema';
-		elseif(empty($this->dbname)) $this->error = 'missing_dbname';
-		else {
-			$vars = Config::get('variables');
-			if(!isset($vars)) $vars = [];
-			$diff = new Diff();
-			$this->result = $diff->diff_sql($this->dbname, $this->schemas, $vars);
-		}
-	}
+	private static $configdir;
 
-	public function execute($options = 0b111){
-		$dbname = DB::escape($this->dbname);
-		DB::sql("USE $dbname");
-		$lines = 0;
-		foreach($this->result['files'] as $file){
-			if($options & self::ALTER){
-				$lines += count($file['alter_queries']);
-				foreach($file['alter_queries'] as $sql) DB::sql($sql);
-			}
-			if($options & self::CREATE){
-				$lines += count($file['create_queries']);
-				foreach($file['create_queries'] as $sql) DB::sql($sql);
-			}
-			if($options & self::DROP){
-				$lines += count($file['drop_queries']);
-				foreach($file['drop_queries'] as $sql) DB::sql($sql);
-			}
-		}
-		return $lines;
-	}
-}
-
-class CorePermission extends Core {
-	protected function __construct(){
-		parent::__construct();
-		$vars = Config::get('variables');
-		$permission = new PermissionDiff($vars['PRIM'],$vars['SECO'],[],$vars);
-		$this->result = $permission->diff_files($this->schemas);
-	}
-
-	public function execute($options = 0){
-		$lines = 0;
-		foreach($this->result['files'] as $file){
-			$lines += count($file['sql']);
-			foreach($file['sql'] as $sql) DB::sql($sql);
-		}
-		return $lines;
-	}
-}
-
-abstract class Core {
-	private static $configdir = '';
 	public static function load_file($path){
 		$path = realpath($path);
 		if($path){
@@ -75,55 +21,81 @@ abstract class Core {
 		return [null,'invalid_path'];
 	}
 
-	public static function load_json($json, $configdir = '.'){
-		self::$configdir = realpath($configdir);
+	public static function load_and_run($json, $configdir = null){
+		if(isset($configdir)){
+			self::$configdir = realpath($configdir);
+		} elseif(!isset(self::$configdir)){
+			self::$configdir = realpath('.');
+		}
+
 		Config::load($json);
 		DB::login();
-		if(!DB::$isloggedin) return 'wrong_credentials';
-	}
-
-	public static function run($action = null){
-		if(empty($action)) $action = Config::get('action');
-		switch($action){
-			case 'diff':
-				$obj = new CoreDiff();
-				break;
-			case 'permission':
-				$obj = new CorePermission();
-				break;
-			default:
-				$obj = null;
+		if(!DB::$isloggedin){
+			return [[], 'login_error'];
 		}
-		$result = isset($obj) ? $obj->get_result() : false;
-		return ['action'=>$action,'result'=>$result,'obj'=>$obj];
+
+		$objs = [];
+		if(!empty($json['batch']) && is_array($json['batch'])){
+			foreach($json['batch'] as $action){
+				Config::load(array_merge($json, $action));
+				$objs[] = new Core();
+			}
+		} else {
+			$objs[] = new Core();
+		}
+
+		return [$objs, null];
 	}
 
 	public $error = null;
-	protected $schemas = [];
+	private $result, $config;
 	protected function __construct(){
+		$this->config = Config::get_instance();
 		DB::login();
-		$this->schemas = self::get_schemalist();
+		$sqlfiles = self::sqlfiles();
+		if(empty($sqlfiles)) $this->error = 'missing_schema';
+		$diff = new Diff($sqlfiles);
+		$permission = new PermissionDiff($sqlfiles);
+		$result = $diff->run();
+		$this->result = $permission->run($result);
 	}
 
-	abstract public function execute($options = 0);
+	public function execute($options = 0b111){
+		Config::set_instance($this->config);
+		$executed_sql = [];
+		DB::use_configured();
+		foreach($this->result['tables'] as $table){
+			if($table['type']=='intersection' && $options & self::ALTER
+				|| $table['type']=='file_only' && $options & self::CREATE){
+				foreach($table['sql'] as $sql){
+					DB::sql($sql);
+					$executed_sql[] = $sql;
+				}
+			}
+		}
+		if($options & self::DROP && !empty($result['drop_queries'])){
+			foreach($file['drop_queries'] as $sql){
+				DB::sql($sql);
+				$executed_sql[] = $sql;
+			}
+		}
+		return $executed_sql;
+	}
 
-	protected $result;
 	public function get_result(){
+		Config::set_instance($this->config);
 		return $this->result;
 	}
 
-	private static function get_schemalist(){
-		$schema = Config::get('schema');
-		if(is_string($schema)){
-			return [realpath(self::$configdir.'/'.$schema)];
-		} elseif(is_array($schema)) {
-			$dir = self::$configdir;
-			return array_map(function($schema) use ($dir){
-				return realpath($dir.'/'.$schema);
-			},$schema);
-		} else {
-			return [$schema];
+	private static function sqlfiles(){
+		$files = Config::get('files');
+		$vars = Config::get('variables');
+		$sqlfiles = [];
+		foreach($files as $file){
+			$sqlfile = new SQLFile(self::$configdir.'/'.$file, $vars);
+			if($sqlfile->exists) $sqlfiles[] = $sqlfile;
 		}
+		return $sqlfiles;
 	}
 }
 ?>
