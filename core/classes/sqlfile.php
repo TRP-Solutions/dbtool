@@ -193,11 +193,12 @@ class SQLFile {
 		$fail = function($msg) use (&$desc, &$tokens){
 			$desc['error'] = $msg;
 			$desc['trace'] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-			$desc['rest'] = '';
+			$desc['rest'] = prev($tokens);
 			while(current($tokens) !== false){
 				$desc['rest'] .= current($tokens).' ';
 				next($tokens);
 			}
+			if($desc['rest'] === false) $desc['rest'] = '';
 			return $desc;
 		};
 		$expect = function($token) use (&$tokens, $fail){

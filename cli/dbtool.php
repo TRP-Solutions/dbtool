@@ -67,7 +67,7 @@ foreach($long_options as $name => $type){
 if(isset($options['files'])) $config['files'] = $options['files'];
 if(empty($config['files']) && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
-
+if(TEST_RUN) echo "Config:\n".json_encode($config)."\n";
 $config['user'] = $config['user']!==false ? $config['user'] : get_current_user();
 if($config['password'] === true) $config['password'] = ask_for_password();
 

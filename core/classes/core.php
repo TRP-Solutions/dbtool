@@ -92,7 +92,8 @@ class Core {
 		$vars = Config::get('variables');
 		$sqlfiles = [];
 		foreach($files as $file){
-			$sqlfile = new SQLFile(self::$configdir.'/'.$file, $vars);
+			$path = $file[0]=='/' ? $file : self::$configdir.'/'.$file;
+			$sqlfile = new SQLFile($path, $vars);
 			if($sqlfile->exists) $sqlfiles[] = $sqlfile;
 		}
 		return $sqlfiles;
