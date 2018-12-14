@@ -204,7 +204,15 @@ class SQLFile {
 			if(self::match_token($tokens, $token)){
 				return false;
 			} else {
-				return $fail('expected: '.(is_array($token) ? implode(', ', $token) : $token)."\nfound: ".current($tokens));
+				$prev = implode(' ',array_reverse([prev($tokens),prev($tokens),prev($tokens)])).' ';
+				next($tokens);next($tokens);
+				$current = next($tokens);
+				$next = [next($tokens),next($tokens),next($tokens)];
+				$context = $prev.$current.' '.implode(' ',$next);
+				$msg = "\n  expected ".(is_array($token) ? implode(', ', $token) : $token)." in";
+				$msg .= "\n  ".$context;
+				$msg .= "\n  ".str_repeat(' ', strlen($prev)).str_repeat('^', strlen($current));
+				return $fail($msg);
 			}
 		};
 		$phrase = function($phrase) use ($expect){
@@ -299,6 +307,11 @@ class SQLFile {
 					$coldesc['datatype']['values'][] = $pop();
 				} while (self::match_token($tokens,','));
 				$close_paren = true;
+			} elseif($type === 'YEAR'){
+				if(self::match_token($tokens,'(')){
+					if($e = $expect('4')) return $e;
+					if($e = $expect(')')) return $e;
+				}
 			}
 			if($close_paren && $e = $expect(')')) return $e;
 
