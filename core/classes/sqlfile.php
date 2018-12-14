@@ -193,19 +193,18 @@ class SQLFile {
 		$fail = function($msg) use (&$desc, &$tokens){
 			$desc['error'] = $msg;
 			$desc['trace'] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-			$desc['rest'] = prev($tokens);
+			$desc['rest'] = '';
 			while(current($tokens) !== false){
 				$desc['rest'] .= current($tokens).' ';
 				next($tokens);
 			}
-			if($desc['rest'] === false) $desc['rest'] = '';
 			return $desc;
 		};
 		$expect = function($token) use (&$tokens, $fail){
 			if(self::match_token($tokens, $token)){
 				return false;
 			} else {
-				return $fail('expected: '.(is_array($token) ? implode(', ', $token) : $token));
+				return $fail('expected: '.(is_array($token) ? implode(', ', $token) : $token)."\nfound: ".current($tokens));
 			}
 		};
 		$phrase = function($phrase) use ($expect){
