@@ -337,8 +337,8 @@ function parse_options(){
 				}
 			}
 		} else {
-			if(!isset($options['schema'])) $options['schema'] = [];
-			$options['schema'][] = $option;
+			if(!isset($options['files'])) $options['files'] = [];
+			$options['files'][] = $option;
 		}
 		$index++;
 	}
