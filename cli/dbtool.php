@@ -64,7 +64,7 @@ foreach($long_options as $name => $type){
 	if(isset($options[$name])) $config[$name] = $options[$name];
 	elseif(!isset($config[$name])) $config[$name] = false;
 }
-if(isset($options['schema'])) $config['schema'] = $options['schema'];
+if(isset($options['files'])) $config['files'] = $options['files'];
 if(empty($config['files']) && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
 
