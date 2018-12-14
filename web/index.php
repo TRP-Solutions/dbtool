@@ -1,7 +1,7 @@
 <?php
 require_once "../core/classes/core.php";
 require_once "../core/classes/format.php";
-require_once "lib/heal-document/HealHTML.php";
+require_once "lib/heal-document/lib/HealHTML.php";
 require_once "config.php";
 require_once "page.php";
 
@@ -95,6 +95,11 @@ function prepare_login(&$json){
 }
 
 function display_result($obj){
+	if($obj->error){
+		Page::error("Error: $obj->error");
+		return;
+	}
+
 	$result = $obj->get_result();
 
 	if(isset($result['error'])){

@@ -53,7 +53,7 @@ class Core {
 		$this->config = Config::get_instance();
 		DB::login();
 		$sqlfiles = self::sqlfiles();
-		if(empty($sqlfiles)) $this->error = 'missing_schema';
+		if(empty($sqlfiles)) $this->error = 'No files found';
 		$diff = new Diff($sqlfiles);
 		$permission = new PermissionDiff($sqlfiles);
 		$result = $diff->run();
