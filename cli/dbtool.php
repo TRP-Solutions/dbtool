@@ -324,7 +324,7 @@ function parse_options(){
 							$pair = explode('=',$value);
 							if(!isset($pair[1])) fail("Option \"$name\" ($option[$i]) requires key \"$pair[0]\" to have a value.",41);
 							$value = isset($option[$name]) && is_array($options[$name]) ? array_merge($options[$name],[$pair[0]=>$pair[1]]) : [$pair[0]=>$pair[1]];
-						} elseif($value === false){
+						} elseif($value === false || $value === ''){
 							if($long_options[$name] & ~OPTION_NOT_VOID) $value = true;
 							else fail("Option \"$name\" ($option[$i]) requires a value.",42);
 						}
