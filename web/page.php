@@ -1,6 +1,6 @@
 <?php
 class Page {
-	private static $output, $body, $navbar, $control, $important, $main;
+	private static $output, $body, $navbar, $control, $control_buttons, $important, $main;
 	private static $execute_button_made = false;
 
 	private static function init(){
@@ -23,7 +23,7 @@ class Page {
 				self::navlink('?dbdisconnect','Disconnect from Database');
 			}
 
-			self::$control = self::$body->el('div',['class'=>'container']);
+			self::$control = self::$body->el('div',['class'=>'container mb-3']);
 			self::$important = self::$body->el('div',['class'=>'container']);
 			self::$main = self::$body->el('div',['class'=>'container']);
 		}
@@ -61,21 +61,23 @@ class Page {
 
 	public static function config_select($actions, $selected = ''){
 		self::init();
-		$form = self::$control->form('.')->at(['class'=>'mb-3']);
+		$form = self::$control->form('.')->at(['class'=>'mb-3','id'=>'config_form']);
 		$form->label('Config file','configselect');
-		$group = $form->el('div',['class'=>'input-group']);
-		$group->el('span',['class'=>'input-group-btn'])->el('button',['class'=>'btn btn-primary','onclick'=>'form.submit()'])->te('Submit');
-		$select = $group->select('config')->at(['class'=>'form-control','id'=>'configselect']);
+		$select = $form->select('config')->at(['class'=>'form-control','id'=>'configselect','onchange'=>'form.submit()']);
 		$select->options($actions,$selected);
+		if(!isset(self::$control_buttons)) self::$control_buttons = self::$control->el('div',['class'=>'btn-group']);
+		self::$control_buttons->el('button',['class'=>'btn btn-primary','onclick'=>'config_form.submit()'])->te('Submit');
 	}
 
 	public static function execute_button(){
 		if(!self::$execute_button_made){
 			self::$execute_button_made = true;
 			self::init();
-			$form = self::$control->form('.?config='.$_GET['config'],'POST');
+			$form = self::$control->form('.?config='.$_GET['config'],'POST')->at(['id'=>'execute_form']);
 			$form->hidden('execute','');
-			$form->el('button',['onclick'=>'if(confirm("Do you want to execute this SQL?")){this.parentElement.submit()}else{return false}','class'=>'btn btn-danger mb-3'])->te('Execute');
+			if(!isset(self::$control_buttons)) self::$control_buttons = self::$control->el('div',['class'=>'btn-group']);
+			$js = 'if(confirm("Are you sure you want to execute this SQL?")){execute_form.submit()}else{return false}';
+			self::$control_buttons->el('button',['onclick'=>$js,'class'=>'btn btn-danger'])->te('Execute');
 		}
 	}
 
