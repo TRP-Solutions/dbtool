@@ -75,7 +75,7 @@ class Page {
 			self::init();
 			$form = self::$control->form('.?config='.$_GET['config'],'POST');
 			$form->hidden('execute','');
-			$form->el('button',['onclick'=>'this.parentElement.submit()','class'=>'btn btn-danger mb-3'])->te('Execute');
+			$form->el('button',['onclick'=>'if(confirm("Do you want to execute this SQL?")){this.parentElement.submit()}else{return false}','class'=>'btn btn-danger mb-3'])->te('Execute');
 		}
 	}
 
@@ -107,6 +107,13 @@ class Page {
 				foreach($data['sql'] as $sql){
 					$pre->te($sql."\n");
 				}
+			}
+			if(isset($data['execute_button'])){
+				$batch = $data['execute_button']['batch'];
+				$id = $data['execute_button']['id'];
+				$form = $card->form('.?config='.$_GET['config'],'POST');
+				$form->hidden('execute_part',"$batch:$id");
+				$form->el('button',['onclick'=>'this.parentElement.submit()','class'=>'btn btn-danger mt-3'])->te('Execute this part');
 			}
 		}
 	}

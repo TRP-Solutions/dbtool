@@ -47,13 +47,15 @@ class Format {
 				if(!empty($display)) $intersection_cards[] = [
 					'title'=>$table['name'],
 					'display'=>$display,
-					'sql'=>$table['sql']
+					'sql'=>$table['sql'],
+					'id'=>'table:'.$table['name']
 				];
 			} elseif($table['type']=='file_only'){
 				$file_only_cards[] = [
 					'title'=>$table['name'],
 					'subtitle'=>'File Only: "'.implode('"; "',$table['sourcefiles']).'"',
-					'sql'=>$table['sql']
+					'sql'=>$table['sql'],
+					'id'=>'table:'.$table['name']
 				];
 			}	
 		}
@@ -61,7 +63,8 @@ class Format {
 			$database_only_cards[] = [
 				'title'=>'Tables only in database',
 				'display'=>[['list'=>$data['db_only_tables']]],
-				'sql'=>$data['drop_queries']
+				'sql'=>$data['drop_queries'],
+				'id'=>'sql:drop'
 			];
 		}
 		return array_merge($error_cards,$intersection_cards,$file_only_cards,$database_only_cards);

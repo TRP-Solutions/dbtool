@@ -77,7 +77,12 @@ function load_and_run($config, $basedir){
 		Page::error(...$msgs);
 		abort();
 	}
+	if(isset($_POST['execute_part'])){
+		$execute = explode(':',$_POST['execute_part']);
+		if(count($execute) == 3) $execute_batch = $execute[0];
+	}
 	foreach($objs as $obj){
+		if(isset($execute_batch) && $execute_batch != $obj->batch_number) continue;
 		display_result($obj);
 	}
 }
@@ -89,14 +94,15 @@ function prepare_login(&$json){
 		$json['user'] = $_SESSION['dbusername'];
 		$json['password'] = empty($_SESSION['dbpassword']) ? null : $_SESSION['dbpassword'];
 	} else {
-		Page::login($json['user']);
+		Page::login(isset($json['user'])?$json['user']:'');
 		abort();
 	}
 }
 
 function display_result($obj){
+	$batch_display_number = $obj->batch_number + 1;
 	if($obj->error){
-		Page::error("Error: $obj->error");
+		Page::error("Error in batch $batch_display_number: $obj->error");
 		return;
 	}
 
@@ -108,8 +114,23 @@ function display_result($obj){
 		return;
 	}
 
+	Page::card(['title'=>'Batch '.$batch_display_number]);
+
 	$is_executed = false;
-	if(isset($_POST['execute'])){
+	if(isset($_POST['execute_part'])){
+		$execute = explode(':',$_POST['execute_part']);
+		if(count($execute) != 3){
+			Page::error("Invalid <execute_part> value");
+			return;
+		}
+		if($execute[1]=='table'){
+			$executed_sql = $obj->execute_table($execute[2]);
+			$is_executed = true;
+		} elseif($execute[1]=='sql' && $execute[2]=='drop'){
+			$executed_sql = $obj->execute_drop();
+			$is_executed = true;
+		}
+	} elseif(isset($_POST['execute'])){
 		$executed_sql = $obj->execute();
 		$is_executed = true;
 	} else {
@@ -144,6 +165,10 @@ function display_result($obj){
 		if(empty($cards)){
 			$cards = blank("No differences");
 		} else {
+			$db = Config::get('database');
+			foreach($cards as &$card){
+				if(isset($card['id'])) $card['execute_button'] = ['batch'=>$obj->batch_number,'id'=>$card['id']];
+			}
 			Page::execute_button();
 		}
 	}

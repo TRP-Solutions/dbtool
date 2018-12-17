@@ -9,7 +9,7 @@ class Core {
 	const CREATE = 0b010;
 	const DROP = 0b001;
 
-	private static $configdir;
+	private static $configdir, $batch_counter = 0;
 
 	public static function load_file($path){
 		$path = realpath($path);
@@ -47,9 +47,10 @@ class Core {
 		return [$objs, null];
 	}
 
-	public $error = null;
-	private $result, $config;
+	public $error = null, $batch_number;
+	private $result, $config, $executed_sql = [];
 	protected function __construct(){
+		$this->batch_number = self::$batch_counter++;
 		$this->config = Config::get_instance();
 		DB::login();
 		$sqlfiles = self::sqlfiles();
@@ -62,24 +63,53 @@ class Core {
 
 	public function execute($options = 0b111){
 		Config::set_instance($this->config);
-		$executed_sql = [];
 		DB::use_configured();
 		foreach($this->result['tables'] as $table){
-			if($table['type']=='intersection' && $options & self::ALTER
-				|| $table['type']=='file_only' && $options & self::CREATE){
-				foreach($table['sql'] as $sql){
-					DB::sql($sql);
-					$executed_sql[] = $sql;
-				}
+			$this->exec_alter_create($table,$options);
+		}
+		$this->exec_drop($options);
+		return $this->executed_sql;
+	}
+
+	public function execute_table($tablename, $options = 0b111){
+		Config::set_instance($this->config);
+		DB::use_configured();
+		foreach($this->result['tables'] as $table){
+			if($table['name']==$tablename){
+				$this->exec_alter_create($table, $options);
+				break;
 			}
 		}
-		if($options & self::DROP && !empty($result['drop_queries'])){
-			foreach($file['drop_queries'] as $sql){
+		if(isset($this->result['tables'][$tablename])){
+			
+		}
+		return $this->executed_sql;
+	}
+
+	public function execute_drop($options = 0b111){
+		Config::set_instance($this->config);
+		DB::use_configured();
+		$this->exec_drop($options);
+		return $this->executed_sql;
+	}
+
+	private function exec_alter_create($table, $options){
+		if($table['type']=='intersection' && $options & self::ALTER
+			|| $table['type']=='file_only' && $options & self::CREATE){
+			foreach($table['sql'] as $sql){
 				DB::sql($sql);
-				$executed_sql[] = $sql;
+				$this->executed_sql[] = $sql;
 			}
 		}
-		return $executed_sql;
+	}
+
+	private function exec_drop($options){
+		if(!empty($this->result['drop_queries']) && $options & self::DROP){
+			foreach($this->result['drop_queries'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
+			}
+		}
 	}
 
 	public function get_result(){
