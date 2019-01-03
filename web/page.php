@@ -53,9 +53,9 @@ class Page {
 
 	public static function error($message, ...$submessages){
 		self::init();
-		self::$important->el('div',['class'=>'alert alert-danger','role'=>'alert'])->te($message);
+		self::error_message(self::$important, $message);
 		foreach($submessages as $submessage){
-			self::$important->el('div',['class'=>'alert alert-info','role'=>'alert'])->te($submessage);
+			self::error_message(self::$important, $submessage, 'alert-info');
 		}
 	}
 
@@ -84,9 +84,16 @@ class Page {
 	public static function card(...$cards){
 		self::init();
 		foreach($cards as $data){
+			if(!empty($data['errors'])){
+				foreach($data['errors'] as $error){
+					self::error_message(self::$main, $error);
+				}
+				continue;
+			}
 			$card = self::$main->el('div',['class'=>'card mb-3']);
 			if(isset($data['title'])){
 				$header = $card->el('div',['class'=>'card-header']);
+				if($data['id']=='error') $header->at(['class'=>'text-white bg-danger'], HEAL_ATTR_APPEND);
 				$header->el('h2',['class'=>'card-title mb-0'])->te($data['title']);
 				if(isset($data['title_class'])) $header->at(['class'=>$data['title_class']], HEAL_ATTR_APPEND);
 				if(isset($data['subtitle'])){
@@ -150,6 +157,10 @@ class Page {
 			}
 		}
 		return $table;
+	}
+
+	private static function error_message($parent, $message, $class = 'alert-danger'){
+		$parent->el('div',['class'=>"alert $class",'role'=>'alert'])->te($message, HEAL_TEXT_NL2BR);
 	}
 
 	public static function itemize($array, $header = null){

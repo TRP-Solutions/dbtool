@@ -48,7 +48,7 @@ if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
 	$path = realpath($name_to_file[$_GET['config']]);
 	list($config,$error) = Core::load_file($path);
 	if(isset($error)){
-		Page::error($error);
+		Page::error('Loading error: '.$error);
 		abort();
 	}
 	load_and_run($config, dirname($path));

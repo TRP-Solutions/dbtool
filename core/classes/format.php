@@ -33,8 +33,7 @@ class Format {
 		$database_only_cards = [];
 		if(!empty($data['errors'])){
 			$error_cards[] = [
-				'title'=>'Errors',
-				'display'=>[['list'=>array_map(function($o){return $o['error'];}, $data['errors'])]]
+				'errors'=>array_map(function($o){return $o['error'];}, $data['errors']),
 			];
 		}
 		foreach($data['tables'] as $table){

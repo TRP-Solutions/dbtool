@@ -20,7 +20,6 @@ class Diff {
 			if(is_array($stmts)) foreach($stmts as $stmt){
 				$file_table = SQLFile::parse_statement($stmt);
 				$name = $file_table['name'];
-
 				if(isset($file_table['error'])){
 					$errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" table `$name`: $file_table[error]"];
 				} elseif(isset($db_tables[$name])){
@@ -37,21 +36,32 @@ class Diff {
 						$diff['sourcefiles'] = [$filename];
 						$diff['sql'] = $this->generate_alter_queries($name, $diff);
 						$diff['type'] = 'intersection';
-						$tables[] = $diff;
+						$diff['filetable'] = $file_table;
+						$tables[$name] = $diff;
 					}
-				} elseif(isset($file_only_tables[$name])){
-					$other_file = isset($file_only_tables[$name]['sourcefile']) ? $file_only_tables[$name]['sourcefile'] : '[unknown file]';
-					$errors[] = ['errno'=>3,'error'=>"Collision Error: table `$name` exists in file \"$filename\" and in file \"$other_file\""];
-				} elseif(isset($intersection_tables[$name])){
-					$other_file = isset($intersection_tables[$name]['sourcefile']) ? $intersection_tables[$name]['sourcefile'] : '[unknown file]';
-					$errors[] = ['errno'=>3,'error'=>"Collision Error: table `$name` exists in file \"$filename\" and in file \"$other_file\""];
+				} elseif(isset($tables[$name])){
+					$emit_collision = true;
+					$reason = "Table already specified";
+					if(isset($tables[$name]['filetable'])){
+						$diff = $this->compare_tables($tables[$name]['filetable'], $file_table);
+						if($diff['is_empty']){
+							$emit_collision = false;
+						} else {
+							$reason = "Table differs from a table with the same name";
+						}
+					}
+					if($emit_collision){
+						$first_other_file = isset($tables[$name]['sourcefiles']) ? $tables[$name]['sourcefiles'][0] : '[unknown file]';
+						$errors[] = ['errno'=>3,'error'=>"Collision Error in file \"$filename\" table `$name`:\n$reason in \"$first_other_file\""];
+					}
 				} else {
 					$file_table['sourcefile'] = $filename;
-					$tables[] = [
+					$tables[$name] = [
 						'name'=>$file_table['name'],
 						'type'=>'file_only',
 						'sourcefiles'=>[$filename],
-						'sql'=>[$file_table['statement'].';']
+						'sql'=>[$file_table['statement'].';'],
+						'filetable'=>$file_table
 					];
 				}
 			}
@@ -180,7 +190,7 @@ class Diff {
 		foreach($file_table['table_options'] as $key => $value){
 			if(!isset($db_table['table_options'][$key])) $options[$key] = [$file_key=>$value];
 		}
-		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options];
+		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options,'is_empty'=>empty($columns)&&empty($keys)&&empty($options)];
 	}
 
 	private function generate_alter_queries($table_name, $table_diff){
