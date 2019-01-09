@@ -80,8 +80,8 @@ class Diff {
 		if(!isset($this->dbtables)){
 			$this->dbname = DB::escape(Config::get('database'));
 			if(empty($this->dbname)) return null;
-			DB::sql("USE $this->dbname;");
-			$query = DB::sql("SHOW TABLES IN `$this->dbname`");
+			DB::sql("USE `$this->dbname`;");
+			$query = DB::sql("SHOW TABLES IN `$this->dbname`;");
 			$tables = array();
 			while($row = $query->fetch_row()){
 				$tables[] = $row[0];
