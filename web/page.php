@@ -93,7 +93,7 @@ class Page {
 			$card = self::$main->el('div',['class'=>'card mb-3']);
 			if(isset($data['title'])){
 				$header = $card->el('div',['class'=>'card-header']);
-				if($data['id']=='error') $header->at(['class'=>'text-white bg-danger'], HEAL_ATTR_APPEND);
+				if(isset($data['id']) && $data['id']=='error') $header->at(['class'=>'text-white bg-danger'], HEAL_ATTR_APPEND);
 				$header->el('h2',['class'=>'card-title mb-0'])->te($data['title']);
 				if(isset($data['title_class'])) $header->at(['class'=>$data['title_class']], HEAL_ATTR_APPEND);
 				if(isset($data['subtitle'])){
