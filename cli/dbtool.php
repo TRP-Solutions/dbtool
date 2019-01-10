@@ -145,8 +145,8 @@ function run_config($config, $configdir){
 	if($error_printed && !empty($successful_results)) echo str_repeat('=', 30)."\nProceeding with non-erroring batches.\n\n";
 
 	foreach($successful_results as $pair){
-		list($result,$obj,$config,$batch_number) = $pair;
-		Config::set_instance($config);
+		list($result,$obj,$batch_config,$batch_number) = $pair;
+		Config::set_instance($batch_config);
 		$batch_msg = "Batch $batch_number";
 		$db = Config::get('database');
 		if(!empty($db)){
@@ -199,7 +199,9 @@ function show_result($result){
 
 	if($no_db && $no_file && $no_intersect){
 		echo "No differences found.\n\n";
+		return false;
 	}
+	return true;
 }
 
 function show_result_tablelist($tables, $ignore, $descriptor, $sql_text, $sql_format = null){
