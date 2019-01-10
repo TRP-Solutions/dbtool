@@ -67,7 +67,7 @@ class DB {
 		$db = Config::get('database');
 		if((!isset($db_in_use) || $this->$db_in_use != $db) && !empty($db)){
 			$dbname = self::escape($db);
-			self::sql("USE $dbname");
+			self::sql("USE `$dbname`;");
 		}
 	}
 
