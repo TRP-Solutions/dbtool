@@ -96,7 +96,7 @@ class Format {
 					'location'=> $source=='t1' ? "Database" : "Schemafile",
 					'keyname'=> $keyname,
 					'columns'=> implode(', ', $row['cols']),
-					'non_unique'=> $row['non_unique']
+					'non_unique'=> isset($row['non_unique']) ? $row['non_unique'] : ''
 				], 'class' => self::diff_class($diff)];
 			}
 		}
