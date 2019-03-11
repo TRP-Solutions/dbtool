@@ -264,7 +264,7 @@ class PermissionDiff {
 		$sql = "$action $stmt[priv_types] ON ";
 		if(isset($stmt['object_type'])) $sql .= $stmt['object_type'].' ';
 		if(isset($stmt['database'])) $sql .= $stmt['database'].'.';
-		$sql .= "$stmt[table] FROM $stmt[user];";
+		$sql .= "$stmt[table] TO $stmt[user];";
 		return $sql;
 	}
 }
