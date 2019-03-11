@@ -203,9 +203,8 @@ class Diff {
 			if(isset($diff['t1']) && isset($diff['t2'])){
 				// modify
 				$query = "ALTER TABLE `$table_name` MODIFY COLUMN ".Format::column_A_to_definition($diff['t2']);
-				if(isset($diff['t1']['after']) && isset($diff['t1']['ordinal_number'])
-					&& $diff['t1']['after'] != $diff['t2']['after']
-					&& $diff['t1']['ordinal_number'] >= $diff['t2']['ordinal_number']){
+				if(isset($diff['t1']['after'])
+					&& $diff['t1']['after'] != $diff['t2']['after']){
 					$query .= $this->build_column_query_after($diff['t2']);
 				}
 			} elseif(isset($diff['t2'])){
