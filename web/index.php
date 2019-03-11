@@ -2,7 +2,9 @@
 require_once "../core/classes/core.php";
 require_once "../core/classes/format.php";
 require_once "lib/heal-document/lib/HealHTML.php";
-require_once "config.php";
+if(file_exists("config.php")){
+	require_once "config.php";
+}
 require_once "page.php";
 
 
