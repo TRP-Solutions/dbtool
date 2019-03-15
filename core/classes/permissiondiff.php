@@ -15,22 +15,15 @@ class PermissionDiff {
 		$db = $this->get_dbdata();
 		if(empty($db['table'])){
 			$file_stmts = [];
-			$user_counts = [];
+			$users = [];
 			foreach($this->files as $file){
 				$stmts = $this->get_stmts($file);
 				$file_stmts[$file->get_filename()] = $stmts;
 				foreach($stmts['table'] as $table){
-					if(!isset($user_counts[$table['user']])) $user_counts[$table['user']] = 1;
-					else $user_counts[$table['user']] += 1;
+					if(!in_array($table['user'], $users)) $users[] = $table['user'];
 				}
 			}
-			arsort($user_counts);
-			foreach($user_counts as $user => $count){
-				if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
-					$db = $this->get_dbdata($user, $matches[1]);
-					break;
-				}
-			}
+			$db = $this->get_dbdata_for_users($users);
 			foreach($file_stmts as $filename => $stmts){
 				$this->diff($partial_result, $filename, $stmts, $db);
 			}
@@ -196,9 +189,9 @@ class PermissionDiff {
 		return ['table'=>$table,'raw'=>$raw];
 	}
 
-	private function get_dbdata($dbuser = null, $db = null){
+	private function get_dbdata(){
 		if(DB::$isloggedin){
-			if(!isset($db)) $db = Config::get('database');
+			$db = Config::get('database');
 			
 			$grants = [];
 			$raw = [];
@@ -210,7 +203,7 @@ class PermissionDiff {
 			foreach($result as $row){
 				$this->merge_into_grants($grants, Format::grant_row_to_description($row));
 			}
-			if(!isset($dbuser) && !empty($db)){
+			if(!empty($db)){
 				$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$db'");
 				if($result && $result->num_rows){
 					$dbuser = "'$db'@'localhost'";
@@ -218,6 +211,28 @@ class PermissionDiff {
 			}
 			if(isset($dbuser)){
 				$result = DB::sql("SHOW GRANTS FOR $dbuser");
+				if($result){
+					while($row = $result->fetch_row()){
+						$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>$this->ignore_host]);
+						$grants[$obj['key']] = $obj;
+						$raw[$obj['key']] = $row[0];
+					}
+				}
+			}
+		}
+		return ['table'=>$grants,'raw'=>$raw];
+	}
+
+	private function get_dbdata_for_users($users){
+		$grants = [];
+		$raw = [];
+		foreach($users as $user){
+			if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
+				$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$matches[1]'");
+				if(!$result || !$result->num_rows){
+					continue;
+				}
+				$result = DB::sql("SHOW GRANTS FOR $user");
 				if($result){
 					while($row = $result->fetch_row()){
 						$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>$this->ignore_host]);
