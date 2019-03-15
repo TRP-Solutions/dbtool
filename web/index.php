@@ -83,9 +83,13 @@ function load_and_run($config, $basedir){
 		$execute = explode(':',$_POST['execute_part']);
 		if(count($execute) == 3) $execute_batch = $execute[0];
 	}
+	$content_emmitted = false;
 	foreach($objs as $obj){
 		if(isset($execute_batch) && $execute_batch != $obj->batch_number) continue;
-		display_result($obj);
+		$content_emmitted = display_result($obj) || $content_emmitted;
+	}
+	if(!$content_emmitted){
+		Page::cards(blank("No differences"));
 	}
 }
 
@@ -105,7 +109,7 @@ function display_result($obj){
 	$batch_display_number = $obj->batch_number + 1;
 	if($obj->error){
 		Page::error("Error in batch $batch_display_number: $obj->error");
-		return;
+		return true;
 	}
 
 	$result = $obj->get_result();
@@ -113,17 +117,24 @@ function display_result($obj){
 	if(isset($result['error'])){
 		$msg = "Error ($result[errno]): ".$result['error'].(isset($result['sqlerror']) ? ' '.$result['sqlerror'] : '');
 		Page::error($msg);
-		return;
+		return true;
 	}
 
-	Page::card(['title'=>'Batch '.$batch_display_number]);
+	$title_is_emitted = false;
+	$display_title = function() use (&$title_is_emitted, $batch_display_number){
+		if(!$title_is_emitted){
+			Page::card(['title'=>'Batch '.$batch_display_number]);
+			$title_is_emitted = true;
+		}
+	};
 
 	$is_executed = false;
 	if(isset($_POST['execute_part'])){
 		$execute = explode(':',$_POST['execute_part']);
 		if(count($execute) != 3){
+			$display_title();
 			Page::error("Invalid <execute_part> value");
-			return;
+			return true;
 		}
 		if($execute[1]=='table'){
 			$executed_sql = $obj->execute_table($execute[2]);
@@ -142,6 +153,7 @@ function display_result($obj){
 			$schemas = array_map(function($s){return preg_replace("|^[./]+|",'',$s);}, $schemas);
 			$db = Config::get('database');
 			$title = empty($db) ? "Files" : "Comparing database `$db` with files";
+			$display_title();
 			Page::itemize($schemas, $title);
 		}
 	}
@@ -149,6 +161,7 @@ function display_result($obj){
 	$dbmsg = DB::get_messages();
 	if(!empty($dbmsg)){
 		$msgs = array_map(function($msg){return $msg['text'];}, $dbmsg);
+		$display_title();
 		Page::itemize($msgs, 'DB Messages');
 	}
 	if($is_executed){
@@ -159,22 +172,34 @@ function display_result($obj){
 				'title_class'=>'text-light bg-success',
 				'sql'=>$executed_sql
 			]];
-		} else {
+		} elseif($title_is_emitted) {
 			$cards = blank("No SQL executed");
+		} else {
+			$cards = [];
 		}
 	} else {
 		$cards = Format::diff_to_display($result);
 		if(empty($cards)){
-			$cards = blank("No differences");
+			if($title_is_emitted){
+				$cards = blank("No differences");
+			} else {
+				$cards = [];
+			}
 		} else {
 			$db = Config::get('database');
 			foreach($cards as &$card){
 				if(isset($card['id'])) $card['execute_button'] = ['batch'=>$obj->batch_number,'id'=>$card['id']];
 			}
+			$display_title();
 			Page::execute_button();
 		}
 	}
-	Page::card(...$cards);
+	if(!empty($cards)){
+		$display_title();
+		Page::card(...$cards);
+		return true;
+	}
+	return false;
 }
 
 function blank($msg){
