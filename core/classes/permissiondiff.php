@@ -210,7 +210,12 @@ class PermissionDiff {
 			foreach($result as $row){
 				$this->merge_into_grants($grants, Format::grant_row_to_description($row));
 			}
-			if(!isset($dbuser) && !empty($db)) $dbuser = "'$db'@'localhost'";
+			if(!isset($dbuser) && !empty($db)){
+				$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$db'");
+				if($result && $result->num_rows){
+					$dbuser = "'$db'@'localhost'";
+				}
+			}
 			if(isset($dbuser)){
 				$result = DB::sql("SHOW GRANTS FOR $dbuser");
 				if($result){
@@ -264,7 +269,13 @@ class PermissionDiff {
 		$sql = "$action $stmt[priv_types] ON ";
 		if(isset($stmt['object_type'])) $sql .= $stmt['object_type'].' ';
 		if(isset($stmt['database'])) $sql .= $stmt['database'].'.';
-		$sql .= "$stmt[table] TO $stmt[user];";
+		if($action == 'GRANT'){
+			$sql .= "$stmt[table] TO $stmt[user];";
+		} elseif($action == 'REVOKE') {
+			$sql .= "$stmt[table] FROM $stmt[user];";
+		} else {
+			$sql = false;
+		}
 		return $sql;
 	}
 }

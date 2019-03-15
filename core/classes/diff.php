@@ -157,8 +157,8 @@ class Diff {
 				else {
 					if($col['after'] != $file_columns[$name]['after']
 						&& !in_array($name, $out_of_order)){
-						unset($col['after']);
-						unset($file_columns[$name]['after']);
+						//unset($col['after']);
+						//unset($file_columns[$name]['after']);
 					}
 					if($col != $file_columns[$name]) $columns[$name] = [$db_key=>$col,$file_key=>$file_columns[$name]];
 					unset($file_columns[$name]);
