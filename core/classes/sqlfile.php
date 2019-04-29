@@ -9,39 +9,6 @@ class SQLFile {
 	public $error = '';
 	private $cache = [];
 
-	public static function get_all($file_ending = 'sql'){
-		$cwd = getcwd();
-		$schemas = [];
-		if(defined('SCHEMAPATH')){
-			$schemapath = strtok(SCHEMAPATH, ';');
-		} else {
-			$schemapath = strtok('.', ';');
-		}
-		while($schemapath){
-			$schemadir = realpath(ROOTDIR . $schemapath);
-			if(is_dir($schemadir)){
-				chdir($schemadir);
-				$glob = glob($schemadir."/*.sql");
-				$schemas = array_merge($schemas, $glob);
-				$subpath = 'mo_*';
-				if(defined('SCHEMA_MODULE_SUBFOLDER') && !empty(SCHEMA_MODULE_SUBFOLDER)) $subpath .= '/'.SCHEMA_MODULE_SUBFOLDER;
-				$glob = glob($schemadir."/$subpath/*.sql");
-				$schemas = array_merge($schemas, $glob);
-			} else {
-				View::msg('error',"Directory '$schemapath' not found.");
-			}
-			$schemapath = strtok(';');
-		}
-		chdir($cwd);
-		if(!empty($file_ending)){
-			return array_filter($schemas, function($schema) use ($file_ending){
-				return $file_ending == explode('.', $schema, 2)[1];
-			});
-		} else {
-			return $schemas;
-		}
-	}
-
 	public function __construct($fname, $vars = []) {
 		if($fname[0] == '/'){
 			$filepath = realpath($fname);
@@ -52,7 +19,7 @@ class SQLFile {
 				$schemapath = strtok('.', ';');
 			}
 			while($schemapath){
-				$schemadir = realpath(ROOTDIR . $schemapath);
+				$schemadir = realpath($schemapath);
 				$filepath = realpath($schemadir .'/'. $fname);
 				if(is_file($filepath)) break;
 				$schemapath = strtok(';');
