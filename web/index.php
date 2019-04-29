@@ -89,7 +89,7 @@ function load_and_run($config, $basedir){
 		$content_emmitted = display_result($obj) || $content_emmitted;
 	}
 	if(!$content_emmitted){
-		Page::cards(blank("No differences"));
+		Page::card(...blank("No differences", true));
 	}
 }
 
@@ -202,7 +202,13 @@ function display_result($obj){
 	return false;
 }
 
-function blank($msg){
+function blank($msg, $exclude_context = false){
+	if($exclude_context){
+		return [[
+			'title_class'=>'alert-success',
+			'title'=>$msg
+		]];
+	}
 	$db = Config::get('database');
 	if(!empty($db)){
 		return [[

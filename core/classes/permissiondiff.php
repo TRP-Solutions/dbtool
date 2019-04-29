@@ -12,25 +12,18 @@ class PermissionDiff {
 	}
 
 	public function run(&$partial_result = []){
-		$db = $this->get_dbdata();
-		if(empty($db['table'])){
-			$file_stmts = [];
-			$users = [];
-			foreach($this->files as $file){
-				$stmts = $this->get_stmts($file);
-				$file_stmts[$file->get_filename()] = $stmts;
-				foreach($stmts['table'] as $table){
-					if(!in_array($table['user'], $users)) $users[] = $table['user'];
-				}
+		$file_stmts = [];
+		$users = [];
+		foreach($this->files as $file){
+			$stmts = $this->get_stmts($file);
+			$file_stmts[$file->get_filename()] = $stmts;
+			foreach($stmts['table'] as $table){
+				if(!in_array($table['user'], $users)) $users[] = $table['user'];
 			}
-			$db = $this->get_dbdata_for_users($users);
-			foreach($file_stmts as $filename => $stmts){
-				$this->diff($partial_result, $filename, $stmts, $db);
-			}
-		} else {
-			foreach($this->files as $file){
-				$this->diff($partial_result, $file->get_filename(), $this->get_stmts($file), $db);
-			}
+		}
+		$db = $this->get_dbdata($users);
+		foreach($file_stmts as $filename => $stmts){
+			$this->diff($partial_result, $filename, $stmts, $db);
 		}
 		return $partial_result;
 	}
@@ -57,7 +50,16 @@ class PermissionDiff {
 					ksort($db['table'][$key]['priv_types']);
 					$dbdiff = array_udiff_assoc($db['table'][$key], $stmt['table'], [$this,'compare']);
 					$filediff = array_udiff_assoc($stmt['table'], $db['table'][$key], [$this,'compare']);
-					if(!empty($dbdiff) || !empty($filediff)){
+					if(array_keys($filediff) == ['priv_types']){
+						$priv_diff = array_udiff_assoc($filediff['priv_types'], $dbdiff['priv_types'], [$this,'compare']);
+						$file_priv_is_subset = empty($priv_diff);
+					} else {
+						$file_priv_is_subset = false;
+					}
+					if($file_priv_is_subset){
+						// file privileges are a subset of what's already in the database
+						// TODO: if strict permission handling is added, also do stuff here
+					} elseif(!empty($dbdiff) || !empty($filediff)){
 						if(!isset($partial_result['tables'][$table])){
 							$partial_result['tables'][$table] = ['name'=>$table,'sourcefiles'=>$stmt['files'],'type'=>'intersection'];
 						}
@@ -84,6 +86,7 @@ class PermissionDiff {
 						unset($result['sql'][$key.'-db']);
 						unset($result['sql'][$key.'-file']);
 					}
+					
 				} else {
 					if(!isset($partial_result['tables'][$table])){
 						$partial_result['tables'][$table] = ['name'=>$table,'sourcefiles'=>$stmt['files'],'type'=>'file_only'];
@@ -189,7 +192,7 @@ class PermissionDiff {
 		return ['table'=>$table,'raw'=>$raw];
 	}
 
-	private function get_dbdata(){
+	private function get_dbdata($users){
 		if(DB::$isloggedin){
 			$db = Config::get('database');
 			
@@ -209,7 +212,7 @@ class PermissionDiff {
 					$dbuser = "'$db'@'localhost'";
 				}
 			}
-			if(isset($dbuser)){
+			if(isset($dbuser) && !in_array($dbuser, $users)){
 				$result = DB::sql("SHOW GRANTS FOR $dbuser");
 				if($result){
 					while($row = $result->fetch_row()){
@@ -219,25 +222,19 @@ class PermissionDiff {
 					}
 				}
 			}
-		}
-		return ['table'=>$grants,'raw'=>$raw];
-	}
-
-	private function get_dbdata_for_users($users){
-		$grants = [];
-		$raw = [];
-		foreach($users as $user){
-			if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
-				$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$matches[1]'");
-				if(!$result || !$result->num_rows){
-					continue;
-				}
-				$result = DB::sql("SHOW GRANTS FOR $user");
-				if($result){
-					while($row = $result->fetch_row()){
-						$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>$this->ignore_host]);
-						$grants[$obj['key']] = $obj;
-						$raw[$obj['key']] = $row[0];
+			foreach($users as $user){
+				if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
+					$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$matches[1]'");
+					if(!$result || !$result->num_rows){
+						continue;
+					}
+					$result = DB::sql("SHOW GRANTS FOR $user");
+					if($result){
+						while($row = $result->fetch_row()){
+							$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>$this->ignore_host]);
+							$grants[$obj['key']] = $obj;
+							$raw[$obj['key']] = $row[0];
+						}
 					}
 				}
 			}
