@@ -36,6 +36,13 @@ class Format {
 				'errors'=>array_map(function($o){return $o['error'];}, $data['errors']),
 			];
 		}
+		if(isset($data['create_database'])){
+			$intersection_cards[] = [
+				'title'=>'Missing database',
+				'sql'=>[$data['create_database']],
+				'id'=>'sql:create_database'
+			];
+		}
 		foreach($data['tables'] as $table){
 			if($table['type']=='intersection'){
 				$display = [];

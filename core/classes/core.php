@@ -63,6 +63,7 @@ class Core {
 
 	public function execute($options = 0b111){
 		Config::set_instance($this->config);
+		$this->exec_create_database();
 		DB::use_configured();
 		foreach($this->result['tables'] as $table){
 			$this->exec_alter_create($table,$options);
@@ -73,6 +74,7 @@ class Core {
 
 	public function execute_table($tablename, $options = 0b111){
 		Config::set_instance($this->config);
+		$this->exec_create_database();
 		DB::use_configured();
 		foreach($this->result['tables'] as $table){
 			if($table['name']==$tablename){
@@ -91,6 +93,19 @@ class Core {
 		DB::use_configured();
 		$this->exec_drop($options);
 		return $this->executed_sql;
+	}
+
+	public function execute_create_database(){
+		Config::set_instance($this->config);
+		$this->exec_create_database();
+		return $this->executed_sql;
+	}
+
+	private function exec_create_database(){
+		if(isset($this->result['create_database'])){
+			DB::sql($this->result['create_database']);
+			$this->executed_sql[] = $this->result['create_database'];
+		}
 	}
 
 	private function exec_alter_create($table, $options){

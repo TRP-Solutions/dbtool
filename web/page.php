@@ -163,11 +163,12 @@ class Page {
 		$parent->el('div',['class'=>"alert $class",'role'=>'alert'])->te($message, HEAL_TEXT_NL2BR);
 	}
 
-	public static function itemize($array, $header = null){
+	public static function itemize($array, $header = null, $important = false){
 		if(!isset($array)) return;
 		if(is_string($array)) $array = [$array];
 		self::init();
-		$list = self::$main->el('ul',['class'=>'list-group mb-3']);
+		$parent = $important ? self::$important : self::$main;
+		$list = $parent->el('ul',['class'=>'list-group mb-3']);
 		if(isset($header)) $list->el('li',['class'=>'list-group-item list-group-item-info'])->te($header);
 		foreach($array as $item){
 			$list->el('li',['class'=>'list-group-item'])->te($item);

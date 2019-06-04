@@ -535,8 +535,10 @@ class SQLFile {
 		if($object_type = self::match_token($tokens, ['TABLE','FUNCTION','PROCEDURE'])) $desc['object_type'] = $object_type;
 
 		$desc['database'] = $pop();
+		if($desc['database'][0] != '`') $desc['database'] = '`'.$desc['database'].'`';
 		if($e = $expect('.')) return $e;
 		$desc['table'] = $pop();
+		if($desc['table'][0] != '`') $desc['table'] = '`'.$desc['table'].'`';
 
 		if($desc['type'] == 'revoke'){
 			if($e = $expect('FROM')) return $e;

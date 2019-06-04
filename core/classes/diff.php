@@ -13,7 +13,7 @@ class Diff {
 		$tables = [];
 		$errors = [];
 
-		$db_tables = $this->get_db_tables();
+		list($db_tables, $create_database) = $this->get_db_tables();
 		foreach($this->files as $file){
 			$filename = $file->get_filename();
 			$stmts = $file->get_create_table_stmts();
@@ -72,23 +72,31 @@ class Diff {
 			'errors'=> $errors,
 			'tables'=> $tables,
 			'db_only_tables'=> $db_only_tables,
-			'drop_queries'=> $this->build_drop_query($db_only_tables, $this->dbname)
+			'drop_queries'=> $this->build_drop_query($db_only_tables, $this->dbname),
+			'create_database'=> $create_database
 		];
 	}
 
 	private function get_db_tables(){
+		$create_database = null;
 		if(!isset($this->dbtables)){
 			$this->dbname = DB::escape(Config::get('database'));
-			if(empty($this->dbname)) return null;
-			DB::sql("USE `$this->dbname`;");
-			$query = DB::sql("SHOW TABLES IN `$this->dbname`;");
-			$tables = array();
-			while($row = $query->fetch_row()){
-				$tables[] = $row[0];
+			if(empty($this->dbname)) return [null,null];
+			$tables = [];
+
+			$query = DB::sql("SHOW DATABASES LIKE '$this->dbname';");
+			if($query->num_rows){
+				DB::sql("USE `$this->dbname`;");
+				$query = DB::sql("SHOW TABLES IN `$this->dbname`;");
+				if($query) while($row = $query->fetch_row()){
+					$tables[] = $row[0];
+				}
+			} else {
+				$create_database = "CREATE DATABASE IF NOT EXISTS '$this->dbname';";
 			}
 			$this->dbtables = array_combine($tables,$tables);
 		}
-		return $this->dbtables;
+		return [$this->dbtables, $create_database];
 	}
 
 	private function compare_tables($file_table, $db_table){

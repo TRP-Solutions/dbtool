@@ -206,12 +206,6 @@ class PermissionDiff {
 			foreach($result as $row){
 				$this->merge_into_grants($grants, Format::grant_row_to_description($row));
 			}
-			if(!empty($db)){
-				$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$db'");
-				if($result && $result->num_rows){
-					$dbuser = "'$db'@'localhost'";
-				}
-			}
 			if(isset($dbuser) && !in_array($dbuser, $users)){
 				$result = DB::sql("SHOW GRANTS FOR $dbuser");
 				if($result){

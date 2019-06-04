@@ -91,6 +91,11 @@ function load_and_run($config, $basedir){
 	if(!$content_emmitted){
 		Page::card(...blank("No differences", true));
 	}
+	$dbmsg = DB::get_messages();
+	if(!empty($dbmsg)){
+		$msgs = array_map(function($msg){return $msg['text'];}, $dbmsg);
+		Page::itemize($msgs, 'DB Messages', true);
+	}
 }
 
 function prepare_login(&$json){
@@ -142,6 +147,9 @@ function display_result($obj){
 		} elseif($execute[1]=='sql' && $execute[2]=='drop'){
 			$executed_sql = $obj->execute_drop();
 			$is_executed = true;
+		} elseif($execute[1]=='sql' && $execute[2]=='create_database'){
+			$executed_sql = $obj->execute_create_database();
+			$is_executed = true;
 		}
 	} elseif(isset($_POST['execute'])){
 		$executed_sql = $obj->execute();
@@ -158,12 +166,6 @@ function display_result($obj){
 		}
 	}
 	
-	$dbmsg = DB::get_messages();
-	if(!empty($dbmsg)){
-		$msgs = array_map(function($msg){return $msg['text'];}, $dbmsg);
-		$display_title();
-		Page::itemize($msgs, 'DB Messages');
-	}
 	if($is_executed){
 		$db = Config::get('database');
 		if(!empty($executed_sql)){
