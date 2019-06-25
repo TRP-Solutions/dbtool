@@ -92,7 +92,7 @@ class Diff {
 					$tables[] = $row[0];
 				}
 			} else {
-				$create_database = "CREATE DATABASE IF NOT EXISTS '$this->dbname';";
+				$create_database = "CREATE DATABASE IF NOT EXISTS `$this->dbname`;";
 			}
 			$this->dbtables = array_combine($tables,$tables);
 		}
