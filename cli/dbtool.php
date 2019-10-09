@@ -25,7 +25,8 @@ $long_options = [
 	'no-create'=>OPTION_VOID,
 	'no-drop'=>OPTION_VOID,
 	'config'=>OPTION_REQUIRES_VALUE,
-	'var'=>OPTION_REQUIRES_KEY_VALUE
+	'var'=>OPTION_REQUIRES_KEY_VALUE,
+	'host'=>OPTION_REQUIRES_VALUE
 ];
 $short_options = [
 	'h'=>'help',
@@ -36,7 +37,8 @@ $short_options = [
 	'v'=>'verbose',
 	'd'=>'database',
 	'c'=>'config',
-	'w'=>'var'
+	'w'=>'var',
+	'h'=>'host'
 ];
 
 $options = parse_options();
