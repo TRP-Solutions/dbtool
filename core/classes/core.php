@@ -43,6 +43,32 @@ class Core {
 		} else {
 			$objs[] = new Core();
 		}
+		
+		$known_tables = [];
+		foreach($objs as $obj){
+			$db = $obj->config->read('database');
+			$result = $obj->get_result();
+			$tables = array_keys($result['tables']);
+			if(!isset($known_tables[$db])){
+				$known_tables[$db] = $tables;
+			} else {
+				$known_tables[$db] = array_merge($known_tables[$db],$tables);
+			}
+		}
+		foreach($known_tables as &$table){
+			$table = array_unique($table);
+		}
+		foreach($objs as $obj){
+			$db = $obj->config->read('database');
+			$obj->result['db_only_tables'] = array_diff($obj->result['db_only_tables'], $known_tables[$db]);
+			$drop = [];
+			foreach($obj->result['db_only_tables'] as $key){
+				if(isset($obj->result['db_only_tables']['drop_queries'][$key])){
+					$drop[$key] = $obj->result['db_only_tables']['drop_queries'][$key]; 
+				}
+			}
+			$obj->result['drop_queries'] = $drop;
+		}
 
 		return [$objs, null];
 	}
