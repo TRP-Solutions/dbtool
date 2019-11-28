@@ -538,7 +538,7 @@ class SQLFile {
 		if($desc['database'][0] != '`') $desc['database'] = '`'.$desc['database'].'`';
 		if($e = $expect('.')) return $e;
 		$desc['table'] = $pop();
-		if($desc['table'][0] != '`') $desc['table'] = '`'.$desc['table'].'`';
+		if($desc['table'][0] != '`' && $desc['table'] != '*') $desc['table'] = '`'.$desc['table'].'`';
 
 		if($desc['type'] == 'revoke'){
 			if($e = $expect('FROM')) return $e;
