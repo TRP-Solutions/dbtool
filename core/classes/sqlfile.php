@@ -344,9 +344,12 @@ class SQLFile {
 				$optional_index_name, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column, &$column_ordinal){
 			$coldesc = [];
 			$is_unique = null;
-			if($token = self::match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY'])){
+			if($token = self::match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT'])){
 				$coldesc['type'] = 'index';
-				if($token == 'UNIQUE'){
+				if($token == 'FULLTEXT'){
+					self::match_token($tokens, ['INDEX','KEY']);
+					$coldesc['index_type'] = 'fulltext';
+				} elseif($token == 'UNIQUE'){
 					self::match_token($tokens, ['INDEX','KEY']);
 					$coldesc['index_type'] = 'unique';
 				} elseif($token == 'PRIMARY'){
@@ -357,7 +360,7 @@ class SQLFile {
 					$coldesc['index_type'] = '';
 				}
 				if($token != 'PRIMARY') $optional_index_name($coldesc['name']);
-				if($e = $index_type($i_type)) return $e;
+				if($e = $index_type($coldesc)) return $e;
 				if($e = $index_columns($coldesc)) return $e;
 			} else {
 				$coldesc['type'] = 'column';
