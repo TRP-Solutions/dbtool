@@ -169,7 +169,8 @@ function run_config($config, $configdir){
 				if($lines){
 					$messages = DB::get_messages();
 					if(empty($messages)){
-						echo "$lines SQL lines executed without errors.\n";
+						$line_count = count($lines);
+						echo "$line_count SQL lines executed without errors.\n";
 					} else {
 						echo "The following errors was encountered:\n";
 						foreach($messages as $msg) echo "$msg[text]\n";
