@@ -63,8 +63,8 @@ class Core {
 			$obj->result['db_only_tables'] = array_diff($obj->result['db_only_tables'], $known_tables[$db]);
 			$drop = [];
 			foreach($obj->result['db_only_tables'] as $key){
-				if(isset($obj->result['db_only_tables']['drop_queries'][$key])){
-					$drop[$key] = $obj->result['db_only_tables']['drop_queries'][$key]; 
+				if(isset($obj->result['drop_queries'][$key])){
+					$drop[$key] = $obj->result['drop_queries'][$key];
 				}
 			}
 			$obj->result['drop_queries'] = $drop;
