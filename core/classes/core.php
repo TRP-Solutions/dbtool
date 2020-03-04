@@ -102,14 +102,8 @@ class Core {
 		Config::set_instance($this->config);
 		$this->exec_create_database();
 		DB::use_configured();
-		foreach($this->result['tables'] as $table){
-			if($table['name']==$tablename){
-				$this->exec_alter_create($table, $options);
-				break;
-			}
-		}
 		if(isset($this->result['tables'][$tablename])){
-			
+			$this->exec_alter_create($this->result['tables'][$tablename], $options);
 		}
 		return $this->executed_sql;
 	}
@@ -136,7 +130,8 @@ class Core {
 
 	private function exec_alter_create($table, $options){
 		if($table['type']=='intersection' && $options & self::ALTER
-			|| $table['type']=='file_only' && $options & self::CREATE){
+			|| $table['type']=='file_only' && $options & self::CREATE
+			|| $table['type']=='database_only' && $options & self::DROP){
 			foreach($table['sql'] as $sql){
 				DB::sql($sql);
 				$this->executed_sql[] = $sql;

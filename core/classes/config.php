@@ -1,7 +1,7 @@
 <?php
 class Config {
 	private static $instance;
-	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database'];
+	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','strict'];
 	const FORCE_ARRAY = ['files'];
 	const STORE_IN_SESSION = [];
 

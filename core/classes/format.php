@@ -28,9 +28,7 @@ class Format {
 
 	public static function diff_to_display($data){
 		$error_cards = [];
-		$intersection_cards = [];
-		$file_only_cards = [];
-		$database_only_cards = [];
+		$cards = [];
 		if(!empty($data['errors'])){
 			$error_cards[] = [
 				'errors'=>array_map(function($o){return $o['error'];}, $data['errors']),
@@ -43,37 +41,34 @@ class Format {
 				'id'=>'sql:create_database'
 			];
 		}
-		foreach($data['tables'] as $table){
-			if($table['type']=='intersection'){
-				$display = [];
-				if(!empty($table['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($table['columns'])];
-				if(!empty($table['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($table['keys'])];
-				if(!empty($table['options'])) $display[] = ['title'=>'Options','table'=>self::table_options_to_display($table['options'])];
-				if(!empty($table['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($table['permissions'])];
-				if(!empty($display)) $intersection_cards[] = [
-					'title'=>$table['name'],
-					'display'=>$display,
-					'sql'=>$table['sql'],
-					'id'=>'table:'.$table['name']
-				];
-			} elseif($table['type']=='file_only'){
-				$file_only_cards[] = [
-					'title'=>$table['name'],
-					'subtitle'=>'File Only: "'.implode('"; "',$table['sourcefiles']).'"',
-					'sql'=>$table['sql'],
-					'id'=>'table:'.$table['name']
-				];
-			}	
+		foreach($data['tables'] as $tablekey => $table){
+			$display = [];
+			if(!empty($table['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($table['columns'])];
+			if(!empty($table['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($table['keys'])];
+			if(!empty($table['options'])) $display[] = ['title'=>'Options','table'=>self::table_options_to_display($table['options'])];
+			if(!empty($table['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($table['permissions'])];
+			$card = [
+				'title'=>$table['name'],
+				'subtitle'=>$table['type']=='database_only' ? 'Database Only' : 'Files: "'.implode('"; "',$table['sourcefiles']).'"',
+				'sql'=>$table['sql'],
+				'id'=>'table:'.$table['name']
+			];
+			if(!empty($display)){
+				$card['display'] = $display;
+			}
+			if($table['type']!='intersection' || !empty($display)){
+				$cards[] = $card;
+			}
 		}
 		if(!empty($data['db_only_tables'])){
-			$database_only_cards[] = [
+			$cards[] = [
 				'title'=>'Tables only in database',
 				'display'=>[['list'=>$data['db_only_tables']]],
 				'sql'=>$data['drop_queries'],
 				'id'=>'sql:drop'
 			];
 		}
-		return array_merge($error_cards,$intersection_cards,$file_only_cards,$database_only_cards);
+		return array_merge($error_cards,$cards);
 	}
 
 	public static function table_columns_to_display($data){
