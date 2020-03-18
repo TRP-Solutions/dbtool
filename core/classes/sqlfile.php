@@ -369,6 +369,12 @@ class SQLFile {
 				if($e = $nullity($coldesc)) return $e;
 				if(self::match_token($tokens,'DEFAULT')){
 					$coldesc['default'] = $pop();
+					if(current($tokens) == '('){
+						while(current($tokens)!= ')'){
+							$coldesc['default'] .= $pop();
+						}
+						$coldesc['default'] .= $pop();
+					}
 					$len = strlen($coldesc['default']);
 					$is_stringy = in_array($coldesc['datatype']['name'],$type_stringy);
 					if($is_stringy){

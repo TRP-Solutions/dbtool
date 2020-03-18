@@ -29,7 +29,7 @@ class PermissionDiff {
 	}
 
 	private function diff(&$partial_result, $filename, $stmts, $db){
-		$strict_permission_handling = Config::get('strict') == true;
+		$strict_permission_handling = !(Config::get('allow_unknown_permissions') == true);
 		$keys = array_unique(array_merge(array_keys($db['table']), array_keys($stmts['table'])));
 		foreach($keys as $key){
 			if(isset($stmts['table'][$key])){
@@ -62,19 +62,26 @@ class PermissionDiff {
 					$dbdiff = array_udiff_assoc($db['table'][$key], $stmt['table'], [$this,'compare']);
 					$filediff = array_udiff_assoc($stmt['table'], $db['table'][$key], [$this,'compare']);
 					if(!empty($dbdiff) || !empty($filediff)){
-						if(array_keys($filediff) == ['priv_types']){
-							$priv_diff = array_udiff_assoc($filediff['priv_types'], $dbdiff['priv_types'], [$this,'compare']);
-							$file_priv_is_subset = empty($priv_diff);
+						if(isset($merge_error)) {
+							$this->init_result($partial_result, $table, 'intersection', $stmt['files']);
+							$this->write_merge_error($partial_result, $table, $key);
 						} else {
-							$file_priv_is_subset = false;
+							list($remove, $add) = $this->file_is_subset($filediff, $dbdiff);
+							if(!empty($remove) || !empty($add)){
+								$this->init_result($partial_result, $table, 'intersection', $stmt['files']);
+							}
+							if(!empty($remove) && $strict_permission_handling){
+								$this->remove_permission(
+									$partial_result['tables'][$table],
+									$key,
+									['priv_types'=>$remove] + $db['table'][$key]
+								);
+							}
+							if(!empty($add)){
+								$this->add_permission($partial_result['tables'][$table], $key, ['priv_types'=>$add] + $stmt['table'], $conflict);
+							}
 						}
-						if(!$file_priv_is_subset || $strict_permission_handling){
-							// Grant is meaningfully different in database and file(s)
-							// -> write intersection diff
-							$this->handle_intersection_permission($partial_result, $table, $key, $db, $stmt, $conflict, $conflict && isset($merge_error));
-						}
-						// Else: Grant is a subset and strict handling is off -> do nothing
-					} elseif($conflict){
+					} else {
 						// Grant is the same in database and file(s)
 						// -> nothing should be done and any previous diffs found are removed
 						$this->unset_permission_in_result($partial_result, $table, $key.'-file');
@@ -83,13 +90,7 @@ class PermissionDiff {
 				} else {
 					// Grant only exists in file
 					$this->init_result($partial_result, $table, 'file_only', $stmt['files']);
-					$this->write_permission_to_result(
-						$partial_result['tables'][$table],
-						$key.'-file',
-						$stmt['table'],
-						'Schemafile'.($conflict ? ' (merged)':''),
-						['class'=>$conflict ? 'bg-warning' : 'bg-success']
-					);
+					$this->add_permission($partial_result['tables'][$table], $key, $stmt['table']);
 				}
 			} elseif($strict_permission_handling) {
 				// Grant only exists in database
@@ -103,47 +104,106 @@ class PermissionDiff {
 				}
 
 				$this->init_result($partial_result, $table, 'database_only');
-				$this->write_permission_to_result(
+				$this->remove_permission(
 					$partial_result['tables'][$table],
-					$key.'-db',
-					$db['table'][$key],
-					'Database',
-					['type'=>'REVOKE','class'=>'bg-danger']
+					$key,
+					$db['table'][$key]
 				);
 			}
 		}
 	}
 
-	private function handle_intersection_permission(&$partial_result, $table, $key, $db, $stmt, $conflict, $merge_error){
-		$this->init_result($partial_result, $table, 'intersection', $stmt['files']);
+	private function add_permission(&$result_table, $key, $stmt_table, $conflict = false){
 		$this->write_permission_to_result(
-			$partial_result['tables'][$table],
-			$key.'-db',
-			$db['table'][$key],
-			'Database',
-			['type'=>'REVOKE']
+			$result_table,
+			$key.'-file',
+			$stmt_table,
+			'Schemafile'.($conflict ? ' (merged)':''),
+			['class'=>$conflict ? 'bg-warning' : 'bg-success']
 		);
-		if($merge_error) {
-			$this->unset_permission_in_result($partial_result, $table, $key.'-file');
-			$i = 0;
-			foreach($this->file_stmts[$table][$key] as $conflict_stmt){
-				$this->write_permission_to_result(
-					$partial_result['tables'][$table],
-					$key.'-file-'.$i,
-					$conflict_stmt['table'],
-					'Schemafile',
-					['class'=>'bg-warning']
-				);
-				$i++;
+	}
+
+	private function remove_permission(&$result_table, $key, $stmt_table){
+		$this->write_permission_to_result(
+			$result_table,
+			$key.'-db',
+			$stmt_table,
+			'Database',
+			['type'=>'REVOKE','class'=>'bg-danger']
+		);
+	}
+
+	private function file_is_subset($filediff, $dbdiff){
+		$remove = [];
+		$add = [];
+		$types = array_unique(array_merge(array_keys($filediff['priv_types']), array_keys($dbdiff['priv_types'])));
+		foreach($types as $type){
+			$filepriv = $filediff['priv_types'][$type] ?? null;
+			$dbpriv = $dbdiff['priv_types'][$type] ?? null;
+			if(isset($filepriv)){
+				if(isset($dbpriv)){
+					if(isset($filepriv['column_list'])){
+						if(isset($dbpriv['column_list'])){
+							// file columns, db columns
+							$file_columns = array_combine($filepriv['column_list'],$filepriv['column_list']);
+							$db_columns = array_combine($dbpriv['column_list'],$dbpriv['column_list']);
+
+							$remove_columns = array_udiff_assoc($db_columns,$file_columns,[$this,'compare']);
+							$add_columns = array_udiff_assoc($file_columns,$db_columns,[$this,'compare']);
+
+							if(!empty($remove_columns)){
+								$remove[$type] = [
+									'priv_type'=>$type,
+									'column_list'=>$remove_columns
+								];
+							}
+							if(!empty($add_columns)){
+								$add[$type] = [
+									'priv_type'=>$type,
+									'column_list'=>$add_columns
+								];
+							}
+						} else {
+							// file columns, db whole table
+							$remove[$type] = $type;
+							$add[$type] = [
+								'priv_type'=>$type,
+								'column_list'=>$filepriv['column_list']
+							];
+						}
+					} else {
+						if(isset($dbpriv['column_list'])){
+							// file whole table, db columns
+							$remove[$type] = [
+								'priv_type'=>$type,
+								'column_list'=>$dbpriv['column_list']
+							];
+							$add[$type] = $type;
+						}
+						// else: file whole table, db whole table => match
+					}
+				} else {
+					// file whole table, db blank
+					$add[$type] = $type;
+				}
 			}
-		} else {
+			// else: file blank => handled elsewhere
+		}
+		return [$remove, $add];
+	}
+
+	private function write_merge_error(&$partial_result, $table, $key){
+		$this->unset_permission_in_result($partial_result, $table, $key.'-file');
+		$i = 0;
+		foreach($this->file_stmts[$table][$key] as $conflict_stmt){
 			$this->write_permission_to_result(
 				$partial_result['tables'][$table],
-				$key.'-file',
-				$stmt['table'],
-				'Schemafile'.($conflict ? ' (merged)':''),
-				['class'=>$conflict ? 'bg-warning' : 'bg-info']
+				$key.'-file-'.$i,
+				$conflict_stmt['table'],
+				'Schemafile',
+				['class'=>'bg-warning']
 			);
+			$i++;
 		}
 	}
 
