@@ -1,5 +1,8 @@
 <?php
-
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 class PermissionDiff {
 	private $ignore_host, $files, $file_stmts = [];
 

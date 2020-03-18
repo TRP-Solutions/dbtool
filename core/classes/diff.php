@@ -1,4 +1,8 @@
 <?php
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 require_once __DIR__.'/db.php';
 require_once __DIR__.'/sqlfile.php';
 require_once __DIR__.'/format.php';

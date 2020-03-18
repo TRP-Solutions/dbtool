@@ -1,4 +1,8 @@
 <?php
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 class Format {
 	public static function prettify_create_table($sql){
 		$result = '';

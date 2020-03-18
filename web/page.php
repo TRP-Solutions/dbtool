@@ -1,4 +1,8 @@
 <?php
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 class Page {
 	private static $output, $body, $navbar, $control, $control_buttons, $important, $main;
 	private static $execute_button_made = false;

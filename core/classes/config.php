@@ -1,4 +1,8 @@
 <?php
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 class Config {
 	private static $instance;
 	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','allow_unknown_permissions'];

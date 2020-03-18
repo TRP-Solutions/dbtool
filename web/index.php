@@ -1,4 +1,8 @@
 <?php
+/*
+DBTool is licensed under the Apache License 2.0 license
+https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
+*/
 require_once "../core/classes/core.php";
 require_once "../core/classes/format.php";
 require_once "lib/heal-document/lib/HealHTML.php";
