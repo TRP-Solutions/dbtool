@@ -3,6 +3,7 @@
 	"host": "localhost",
 	"user": "username",
 	"password": "XXX",
+	"allow_unknown_permissions": true,
 	"batch": [
 		{
 			"database": "foo",
