@@ -127,7 +127,7 @@ class Diff {
 					$i = 1;
 					$basename = $name;
 					while(isset($file_keys[$name])){
-						$name = "$basename_$i";
+						$name = "{$basename}_$i";
 						$i++;
 					}
 				}
