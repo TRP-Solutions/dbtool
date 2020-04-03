@@ -3,5 +3,6 @@
 	"user": "username",
 	"database": "test",
 	"files": ["path/to/schema/file.sql"],
-	"variables": {"VAR": "value"}
+	"variables": {"VAR": "value"},
+	"allow_unknown_permission": true
 }
