@@ -17,6 +17,10 @@ class PermissionDiff {
 		$filter = [];
 		foreach($this->files as $file){
 			$stmts = $this->get_stmts($file);
+			if(isset($stmts['error'])){
+				$partial_result['errors'][] = ['errno'=>5,'error'=>'File parse conflict: '.$stmts['error']];
+				continue;
+			}
 			$file_stmts[$file->get_filename()] = $stmts;
 			foreach($stmts['table'] as $table){
 				if(!in_array($table['user'], $users)) $users[] = $table['user'];
@@ -143,54 +147,51 @@ class PermissionDiff {
 		foreach($types as $type){
 			$filepriv = $filediff['priv_types'][$type] ?? null;
 			$dbpriv = $dbdiff['priv_types'][$type] ?? null;
-			if(isset($filepriv)){
-				if(isset($dbpriv)){
-					if(isset($filepriv['column_list'])){
-						if(isset($dbpriv['column_list'])){
-							// file columns, db columns
-							$file_columns = array_combine($filepriv['column_list'],$filepriv['column_list']);
-							$db_columns = array_combine($dbpriv['column_list'],$dbpriv['column_list']);
+			if(isset($filepriv['column_list']) && isset($dbpriv['column_list'])){
+				// file columns, db columns
+				$file_columns = array_combine($filepriv['column_list'],$filepriv['column_list']);
+				$db_columns = array_combine($dbpriv['column_list'],$dbpriv['column_list']);
 
-							$remove_columns = array_udiff_assoc($db_columns,$file_columns,[$this,'compare']);
-							$add_columns = array_udiff_assoc($file_columns,$db_columns,[$this,'compare']);
+				$remove_columns = array_udiff_assoc($db_columns,$file_columns,[$this,'compare']);
+				$add_columns = array_udiff_assoc($file_columns,$db_columns,[$this,'compare']);
 
-							if(!empty($remove_columns)){
-								$remove[$type] = [
-									'priv_type'=>$type,
-									'column_list'=>$remove_columns
-								];
-							}
-							if(!empty($add_columns)){
-								$add[$type] = [
-									'priv_type'=>$type,
-									'column_list'=>$add_columns
-								];
-							}
-						} else {
-							// file columns, db whole table
-							$remove[$type] = $type;
-							$add[$type] = [
-								'priv_type'=>$type,
-								'column_list'=>$filepriv['column_list']
-							];
-						}
-					} else {
-						if(isset($dbpriv['column_list'])){
-							// file whole table, db columns
-							$remove[$type] = [
-								'priv_type'=>$type,
-								'column_list'=>$dbpriv['column_list']
-							];
-							$add[$type] = $type;
-						}
-						// else: file whole table, db whole table => match
-					}
-				} else {
-					// file whole table, db blank
+				if(!empty($remove_columns)){
+					$remove[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$remove_columns
+					];
+				}
+				if(!empty($add_columns)){
+					$add[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$add_columns
+					];
+				}
+			} elseif($filepriv != $dbpriv) {
+				if(isset($dbpriv['column_list'])){
+					// db columns
+					$remove[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$dbpriv['column_list']
+					];
+				} elseif(isset($dbpriv)) {
+					// db whole table
+					$remove[$type] = $type;
+				}
+				// else: db blank
+				if(isset($filepriv['column_list'])){
+					// file columns
+					$add[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$filepriv['column_list']
+					];
+				} elseif(isset($filepriv)) {
+					// file whole table
 					$add[$type] = $type;
 				}
+				// else: file blank
 			}
-			// else: file blank => handled elsewhere
+			// else: file whole table, db whole table => match
 		}
 		return [$remove, $add];
 	}
@@ -249,7 +250,20 @@ class PermissionDiff {
 					$merged[$key] = $value;
 				} elseif($merged[$key]!=$value){
 					if($key == 'priv_types'){
-						$merged[$key] = array_merge($merged[$key],$value);
+						$keys = [];
+						$values = array_map(function($a, $b) use (&$keys){
+							if(!isset($a) || !isset($b['column_list'])){
+								$keys[] = $b;
+								return $b;
+							}
+							if(!isset($b) || !isset($a['column_list'])){
+								$keys[] = $a;
+								return $a;
+							}
+							$keys[] = $a['priv_type'];
+							return ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
+						},$merged[$key],$value);
+						$merged[$key] = array_combine($keys,$values);
 					} else {
 						$merged = null;
 						break;
@@ -304,13 +318,25 @@ class PermissionDiff {
 		$raw = [];
 		foreach($file->get_all_stmts() as $stmt){
 			$obj = SQLFile::parse_statement($stmt, ['ignore_host'=>$this->ignore_host]);
+			$filename = $file->get_filename();
 			if($obj['type'] != 'grant' && $obj['type'] != 'revoke') continue;
 			if(!isset($user) || $obj['user'] == $user){
-				$table[$obj['key']] = $obj;
-				$raw[$obj['key']] = $stmt;
+				if(isset($table[$obj['key']])){
+					list($merged,$merge_error) = $this->merge_file_stmts($obj['key'],
+						['table'=>$table[$obj['key']],'files'=>[$filename]],
+						['table'=>$obj,'files'=>[$filename]]);
+					if(isset($merge_error)){
+						return ['table'=>null,'raw'=>null,'error'=>$merge_error];
+					}
+					$table[$obj['key']] = $merged['table'];
+					$raw[$obj['key']] = $merged['raw'];
+				} else {
+					$table[$obj['key']] = $obj;
+					$raw[$obj['key']] = $stmt;
+				}
 			}
 		}
-		return ['table'=>$table,'raw'=>$raw];
+		return ['table'=>$table,'raw'=>$raw,'error'=>null];
 	}
 
 	private function get_dbdata($users, $filter = []){
