@@ -74,7 +74,7 @@ class PermissionDiff {
 							$this->write_merge_error($partial_result, $table, $key);
 						} else {
 							list($remove, $add) = $this->file_is_subset($filediff, $dbdiff);
-							if(!empty($remove) || !empty($add)){
+							if(!empty($remove) && $strict_permission_handling || !empty($add)){
 								$this->init_result($partial_result, $table, 'intersection', $stmt['files']);
 							}
 							if(!empty($remove) && $strict_permission_handling){
