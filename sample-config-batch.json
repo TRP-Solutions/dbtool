@@ -4,6 +4,7 @@
 	"user": "username",
 	"password": "XXX",
 	"allow_unknown_permissions": true,
+	"allow_unknown_users": true,
 	"batch": [
 		{
 			"database": "foo",

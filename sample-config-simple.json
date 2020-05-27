@@ -4,5 +4,6 @@
 	"database": "test",
 	"files": ["path/to/schema/file.sql"],
 	"variables": {"VAR": "value"},
-	"allow_unknown_permission": true
+	"allow_unknown_permission": true,
+	"allow_unknown_users": true
 }
