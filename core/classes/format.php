@@ -172,7 +172,10 @@ class Format {
 		} else {
 			$grantee = $row['GRANTEE'];
 		}
-		$key = 'grant:'.$grantee.':`'.$row['TABLE_SCHEMA'].'`.`'.$row['TABLE_NAME'].'`';
+		$key = 'grant:'.$grantee.':`'.$row['TABLE_SCHEMA'].'`';
+		if(isset($row['TABLE_NAME'])){
+			$key .= '.`'.$row['TABLE_NAME'].'`';
+		}
 		if(isset($row['COLUMN_NAME'])){
 			$priv_types = [$row['PRIVILEGE_TYPE'] => ['priv_type'=>$row['PRIVILEGE_TYPE'],'column_list'=>[$row['COLUMN_NAME']]]];
 		} else {
@@ -183,7 +186,7 @@ class Format {
 			'key' => $key,
 			'priv_types' => $priv_types,
 			'database' => '`'.$row['TABLE_SCHEMA'].'`',
-			'table' => '`'.$row['TABLE_NAME'].'`',
+			'table' => isset($row['TABLE_NAME']) ? '`'.$row['TABLE_NAME'].'`' : null,
 			'user' => $grantee
 		];
 		return $desc;

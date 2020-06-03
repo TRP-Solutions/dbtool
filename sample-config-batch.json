@@ -3,8 +3,7 @@
 	"host": "localhost",
 	"user": "username",
 	"password": "XXX",
-	"allow_unknown_permissions": true,
-	"allow_unknown_users": true,
+	"foreign_permissions": "allow", // default is "deny"
 	"batch": [
 		{
 			"database": "foo",

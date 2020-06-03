@@ -15,7 +15,6 @@ class PermissionDiff {
 		$file_stmts = [];
 		$users = [];
 		$filter = [];
-		$allow_unknown_users = Config::get('allow_unknown_users') == true;
 		foreach($this->files as $file){
 			$stmts = $this->get_stmts($file);
 			if(isset($stmts['error'])){
@@ -26,24 +25,19 @@ class PermissionDiff {
 			foreach($stmts['table'] as $table){
 				if(!in_array($table['user'], $users)) $users[] = $table['user'];
 				$pairkey = $table['database'].':'.$table['user'];
-				if($allow_unknown_users) $filter[$pairkey] = true;
+				$filter[$pairkey] = true;
 			}
 		}
-		$db = $this->get_dbdata($users
-			, $filter
-		);
+		$db = $this->get_dbdata($users,$filter);
 		foreach($file_stmts as $filename => $stmts){
 			$this->diff($partial_result, $filename, $stmts, $db);
-		}
-		ksort($filter);
-		foreach($filter as $key => $f){
-			//echo $key.'<br>';
 		}
 		return $partial_result;
 	}
 
 	private function diff(&$partial_result, $filename, $stmts, $db){
-		$strict_permission_handling = !(Config::get('allow_unknown_permissions') == true);
+		$selected_db = Config::get('database');
+		$strict_permission_handling = !(Config::get('foreign_permissions') == 'allow');
 		$keys = array_unique(array_merge(array_keys($db['table']), array_keys($stmts['table'])));
 		foreach($keys as $key){
 			if(isset($stmts['table'][$key])){
@@ -109,6 +103,9 @@ class PermissionDiff {
 			} elseif($strict_permission_handling) {
 				// Grant only exists in database
 				if($db['table'][$key]['priv_types'] == ['USAGE'=>'USAGE']){
+					continue;
+				}
+				if(!empty($selected_db) && "`$selected_db`" != $db['table'][$key]['database']){
 					continue;
 				}
 				$table = $this->get_table($db['table'][$key]);
@@ -352,21 +349,24 @@ class PermissionDiff {
 		if(DB::$isloggedin){
 			$db = Config::get('database');
 			
+			/*
+			$result = DB::sql("SELECT * FROM `information_schema`.`schema_privileges` WHERE `table_schema` = '$db'");
+			foreach($result as $row){
+				$desc = Format::grant_row_to_description($row);
+				$this->merge_into_grants($grants, $desc);
+			}
+			*/
 			$result = DB::sql("SELECT * FROM `information_schema`.`table_privileges` WHERE `table_schema` = '$db'");
 			foreach($result as $row){
 				$desc = Format::grant_row_to_description($row);
-				if($this->desc_is_allowed($desc,$filter)){
-					$this->merge_into_grants($grants, $desc);
-				}
+				$this->merge_into_grants($grants, $desc);
 			}
 			$result = DB::sql("SELECT * FROM `information_schema`.`column_privileges` WHERE `table_schema` = '$db' ORDER BY grantee");
 			$rows = [];
 			foreach($result as $row){
 				$rows[] = json_encode($row);
 				$desc = Format::grant_row_to_description($row);
-				if($this->desc_is_allowed($desc,$filter)){
-					$this->merge_into_grants($grants, $desc);
-				}
+				$this->merge_into_grants($grants, $desc);
 			}
 			foreach($users as $user){
 				if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
