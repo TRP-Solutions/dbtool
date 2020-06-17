@@ -116,6 +116,13 @@ function prepare_login(&$json){
 
 function display_result($obj){
 	$batch_display_number = $obj->batch_number + 1;
+
+	if(!empty($obj->warnings)){
+		foreach($obj->warnings as $warning){
+			Page::error("Batch $batch_display_number: ".$warning);
+		}
+	}
+
 	if($obj->error){
 		Page::error("Error in batch $batch_display_number: $obj->error");
 		return true;

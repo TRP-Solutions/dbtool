@@ -256,17 +256,26 @@ class PermissionDiff {
 					if($key == 'priv_types'){
 						$keys = [];
 						$values = array_map(function($a, $b) use (&$keys){
-							if(!isset($a) || !isset($b['column_list'])){
+							if(is_string($a)){
+								$keys[] = $a;
+								return $a;
+							}
+							if(is_string($b)){
 								$keys[] = $b;
 								return $b;
 							}
-							if(!isset($b) || !isset($a['column_list'])){
-								$keys[] = $a;
+							if(!isset($a)){
+								$keys[] = $b['priv_type'];
+								return $b;
+							}
+							if(!isset($b)){
+								$keys[] = $a['priv_type'];
 								return $a;
 							}
 							$keys[] = $a['priv_type'];
 							return ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
 						},$merged[$key],$value);
+
 						$merged[$key] = array_combine($keys,$values);
 					} else {
 						$merged = null;

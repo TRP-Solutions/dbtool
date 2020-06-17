@@ -137,8 +137,15 @@ function run_config($config, $configdir){
 	$num = 0;
 	foreach($objs as $obj){
 		$num++;
+		$batch_name = count($objs) > 1 ? "batch #$num" : 'config';
+
+		if(!empty($obj->warnings)){
+			foreach($obj->warnings as $warning){
+				echo "Warning in $batch_name: $warning\n";
+			}
+		}
 		if(!empty($obj->error)){
-			$batch_name = count($objs) > 1 ? "batch #$num" : 'config';
+			
 			echo "Error in $batch_name: $obj->error\n";
 			$error_printed = true;
 			continue;

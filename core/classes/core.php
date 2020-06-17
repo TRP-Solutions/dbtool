@@ -77,13 +77,14 @@ class Core {
 		return [$objs, null];
 	}
 
-	public $error = null, $batch_number;
+	public $error = null, $warnings = [], $batch_number;
 	private $result, $config, $executed_sql = [];
 	protected function __construct(){
 		$this->batch_number = self::$batch_counter++;
 		$this->config = Config::get_instance();
 		DB::login();
-		$sqlfiles = self::sqlfiles();
+		list($sqlfiles, $warnings) = self::sqlfiles();
+		if(!empty($warnings)) $this->warnings = $warnings;
 		if(empty($sqlfiles)) $this->error = 'No files found';
 		$diff = new Diff($sqlfiles);
 		$permission = new PermissionDiff($sqlfiles);
@@ -161,20 +162,23 @@ class Core {
 		$files = Config::get('files');
 		$vars = Config::get('variables');
 		$sqlfiles = [];
+		$errors = [];
 		foreach($files as $file){
 			$path = realpath($file[0]=='/' ? $file : self::$configdir.'/'.$file);
-			if($path===false) continue;
+			if($path===false){
+				$errors[] = "Can't read file: ".$file;
+				continue;
+			}
 			if(is_dir($path)){
 				foreach(glob($path.'/[^_]*.sql') as $filepath){
 					$sqlfile = new SQLFile($filepath, $vars);
-					if($sqlfile->exists) $sqlfiles[] = $sqlfile;
 				}
 			} else {
 				$sqlfile = new SQLFile($path, $vars);
 				if($sqlfile->exists) $sqlfiles[] = $sqlfile;
 			}
 		}
-		return $sqlfiles;
+		return [$sqlfiles, $errors];
 	}
 }
 ?>
