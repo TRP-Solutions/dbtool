@@ -255,28 +255,30 @@ class PermissionDiff {
 				} elseif($merged[$key]!=$value){
 					if($key == 'priv_types'){
 						$keys = [];
-						$values = array_map(function($a, $b) use (&$keys){
+						$values = [];
+						$priv_keys = array_unique(array_merge(array_keys($merged[$key]),array_keys($value)));
+						foreach($priv_keys as $priv_key){
+							$a = isset($merged[$key][$priv_key]) ? $merged[$key][$priv_key] : null;
+							$b = isset($value[$priv_key]) ? $value[$priv_key] : null;
 							if(is_string($a)){
-								$keys[] = $a;
-								return $a;
+								$values[$a] = $a;
+								continue;
 							}
 							if(is_string($b)){
-								$keys[] = $b;
-								return $b;
+								$values[$b] = $b;
+								continue;
 							}
 							if(!isset($a)){
-								$keys[] = $b['priv_type'];
-								return $b;
+								$values[$b['priv_type']] = $b;
+								continue;
 							}
 							if(!isset($b)){
-								$keys[] = $a['priv_type'];
-								return $a;
+								$values[$a['priv_type']] = $a;
+								continue;
 							}
-							$keys[] = $a['priv_type'];
-							return ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
-						},$merged[$key],$value);
-
-						$merged[$key] = array_combine($keys,$values);
+							$values[$a['priv_type']] = ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
+						}
+						$merged[$key] = $values;
 					} else {
 						$merged = null;
 						break;
