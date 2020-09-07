@@ -16,6 +16,7 @@ define('OPTION_TAKES_VALUE',1);
 define('OPTION_NOT_VOID',2); // never used without OPTION_TAKES_VALUE
 define('OPTION_REQUIRES_VALUE',3); // 0b01 + 0b10, combined OPTION_TAKES_VALUE & OPTION_NOT_VOID
 define('OPTION_REQUIRES_KEY_VALUE',4);
+define('OPTION_LIST_VALUE',8);
 $long_options = [
 	'help'=>OPTION_VOID,
 	'execute'=>OPTION_VOID,
@@ -29,8 +30,9 @@ $long_options = [
 	'no-create'=>OPTION_VOID,
 	'no-drop'=>OPTION_VOID,
 	'config'=>OPTION_REQUIRES_VALUE,
-	'var'=>OPTION_REQUIRES_KEY_VALUE,
-	'host'=>OPTION_REQUIRES_VALUE
+	'variables'=>OPTION_REQUIRES_KEY_VALUE,
+	'host'=>OPTION_REQUIRES_VALUE,
+	'mode'=>OPTION_REQUIRES_VALUE | OPTION_LIST_VALUE
 ];
 $short_options = [
 	'h'=>'help',
@@ -42,7 +44,8 @@ $short_options = [
 	'd'=>'database',
 	'c'=>'config',
 	'w'=>'var',
-	'h'=>'host'
+	'h'=>'host',
+	'm'=>'mode'
 ];
 
 $options = parse_options();
@@ -87,21 +90,21 @@ php dbtool.php [OPTIONS] SCHEMAFILE [SCHEMAFILE...]
 php dbtool.php [OPTIONS] --config=CONFIGFILE
 
 General Options:
-  -h, --help                       Displays this help text.
+  -h, --help                          Displays this help text.
 
-  -cVALUE, --config=VALUE          Loads a config file.
-  -dVALUE, --database=VALUE        An execution will use the given database, if a database isn't specified in the schemafile.
-  -e, --execute                    Run the generated SQL to align the database with the provided schema.
-  -f, --force                      Combined with -e: Run any SQL without asking first.
-  --no-alter                       An execution will not include ALTER statements.
-  --no-create                      An execution will not include CREATE statements.
-  --no-drop                        An execution will not include DROP statements.
-  -p[VALUE], --password[=VALUE]    Use given password or if not set, request password before connecting to the database.
-  -uVALUE, --user=VALUE            Use the given username when connecting to the database.
-  -v, --verbose                    Write extra descriptive output.
-  -wKEY=VALUE, --var KEY=VALUE     Define a variable to be inserted in the schema.
+  -cVALUE, --config=VALUE             Loads a config file.
+  -dVALUE, --database=VALUE           An execution will use the given database, if a database isn't specified in the schemafile.
+  -e, --execute                       Run the generated SQL to align the database with the provided schema.
+  -f, --force                         Combined with -e: Run any SQL without asking first.
+  --no-alter                          An execution will not include ALTER statements.
+  --no-create                         An execution will not include CREATE statements.
+  --no-drop                           An execution will not include DROP statements.
+  -p[VALUE], --password[=VALUE]       Use given password or if not set, request password before connecting to the database.
+  -uVALUE, --user=VALUE               Use the given username when connecting to the database.
+  -v, --verbose                       Write extra descriptive output.
+  -wKEY=VALUE, --variables KEY=VALUE  Define a variable to be inserted in the schema.
 
-  --test                           Run everything as usual, but without executing any SQL.
+  --test                              Run everything as usual, but without executing any SQL.
 
 HELP;
 exit;
@@ -322,6 +325,8 @@ function parse_options(){
 					if(!isset($options[$opt[0]])) $options[$opt[0]] = [];
 					$options[$opt[0]][$pair[0]] = $pair[1];
 					$index++;
+				} elseif($type & OPTION_LIST_VALUE){
+					$options[$opt[0]] = isset($opt[1]) ? explode(',',$opt[1]) : [];
 				} else {
 					$options[$opt[0]] = isset($opt[1]) ? $opt[1] : true;
 				}
@@ -341,8 +346,10 @@ function parse_options(){
 							if(!isset($pair[1])) fail("Option \"$name\" ($option[$i]) requires key \"$pair[0]\" to have a value.",41);
 							$value = isset($option[$name]) && is_array($options[$name]) ? array_merge($options[$name],[$pair[0]=>$pair[1]]) : [$pair[0]=>$pair[1]];
 						} elseif($value === false || $value === ''){
-							if($long_options[$name] & ~OPTION_NOT_VOID) $value = true;
+							if($long_options[$name] & ~OPTION_NOT_VOID) $value = $long_options[$name] & OPTION_LIST_VALUE ? [] : true;
 							else fail("Option \"$name\" ($option[$i]) requires a value.",42);
+						} elseif($long_options[$name] & OPTION_LIST_VALUE){
+							$value = explode(',',$value);
 						}
 						$i = strlen($option);
 					} else {

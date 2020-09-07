@@ -5,8 +5,8 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 class Config {
 	private static $instance;
-	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','foreign_permissions'];
-	const FORCE_ARRAY = ['files'];
+	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','foreign_permissions','mode'];
+	const FORCE_ARRAY = ['files','mode'];
 	const STORE_IN_SESSION = [];
 
 	public static function load($json){
