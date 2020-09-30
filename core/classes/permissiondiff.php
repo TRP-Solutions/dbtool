@@ -3,124 +3,218 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
-require_once "tablediff.php";
-class PermissionDiff {
-	private $ignore_host, $files;
+class Permissiondiff {
+	private $key, $db_stmt, $file_stmts = [], $filenames = [], $diff_calculated = true, $grant, $revoke;
+	public $is_merged = false, $merge_error = null;
 
-	public function __construct($files){
-		$this->ignore_host = defined('PERMISSION_IGNORE_HOST') && PERMISSION_IGNORE_HOST;
-		$this->files = $files;
+	public function __construct($key){
+		$this->key = $key;
 	}
 
-	public function run(&$partial_result = []){
-		Tablediff::reset();
-		$users = [];
-		$filter = [];
-		foreach($this->files as $file){
-			$stmts = [];
-			foreach($file->get_all_stmts() as $stmt){
-				$obj = SQLFile::parse_statement($stmt, ['ignore_host'=>$this->ignore_host]);
-				if($obj['type'] != 'grant' && $obj['type'] != 'revoke') continue;
-				$stmts[] = $obj;
-			}
-			$filename = $file->get_filename();
-			foreach($stmts as $stmt){
-				Tablediff::file_statement($stmt, $filename);
-				if(!in_array($stmt['user'], $users)) $users[] = $stmt['user'];
-				$pairkey = $stmt['database'].':'.$stmt['user'];
-				$filter[$pairkey] = true;
-			}
-		}
-		$db = $this->get_dbdata($users,$filter);
-		foreach($db as $stmt){
-			Tablediff::database_statement($stmt);
-		}
-		Tablediff::diff_all();
-		$mode = 0;
-		$config_modes = Config::get('mode');
-		if(in_array('grant', $config_modes) || empty($config_modes)){
-			$mode = $mode | Tablediff::GRANT;
-		}
-		if(in_array('revoke', $config_modes)|| empty($config_modes)){
-			$mode = $mode | Tablediff::REVOKE;
-		}
-		Tablediff::write_result($partial_result, $mode);
-		return $partial_result;
+	public function debug_output(){
+		return ['key'=>$this->key,'grant'=>$this->grant, 'revoke'=>$this->revoke];
 	}
 
-	private function get_table($stmt, $native_db = null){
-		if(!isset($native_db)) $native_db = Config::get('database');
-		$database = preg_replace('/^`([^`]*)`$/','$1',$stmt['database']);
-		$table = preg_replace('/^`([^`]*)`$/','$1',$stmt['table']);
-		//if($database == $native_db) return $table;
-		return $database.'.'.$table;
+	public function from_database($stmt){
+		$this->db_stmt = $stmt;
+		$this->diff_calculated = false;
 	}
 
-	private function get_dbdata($users, $filter = []){
-		$grants = [];
-		if(DB::$isloggedin){
-			$db = Config::get('database');
-			
-			/*
-			$result = DB::sql("SELECT * FROM `information_schema`.`schema_privileges` WHERE `table_schema` = '$db'");
-			foreach($result as $row){
-				$desc = Format::grant_row_to_description($row);
-				$this->merge_into_grants($grants, $desc);
-			}
-			*/
-			$result = DB::sql("SELECT * FROM `information_schema`.`table_privileges` WHERE `table_schema` = '$db'");
-			foreach($result as $row){
-				$desc = Format::grant_row_to_description($row);
-				$this->merge_into_grants($grants, $desc);
-			}
-			$result = DB::sql("SELECT * FROM `information_schema`.`column_privileges` WHERE `table_schema` = '$db' ORDER BY grantee");
-			$rows = [];
-			foreach($result as $row){
-				$rows[] = json_encode($row);
-				$desc = Format::grant_row_to_description($row);
-				$this->merge_into_grants($grants, $desc);
-			}
-			foreach($users as $user){
-				if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
-					$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$matches[1]'");
-					if(!$result || !$result->num_rows){
-						continue;
-					}
-					$result = DB::sql("SHOW GRANTS FOR $user");
-					if($result){
-						while($row = $result->fetch_row()){
-							$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>$this->ignore_host]);
-							if($this->desc_is_allowed($obj,$filter)){
-								$grants[$obj['key']] = $obj;
-								$raw[$obj['key']] = $row[0];
-							}
-							
-						}
-					}
-				}
-			}
+	public function from_file($stmt, $filename){
+		$this->file_stmts[] = $stmt;
+		$this->diff_calculated = false;
+		$this->filenames[] = $filename;
+	}
+
+	public function get_grant(){
+		$this->diff();
+		return $this->grant;
+	}
+
+	public function get_revoke(){
+		$this->diff();
+		return $this->revoke;
+	}
+
+	public function get_unmerged(){
+		return $this->file_stmts;
+	}
+
+	private function diff(){
+		if($this->diff_calculated) return;
+		$db = $this->db_stmt;
+		$file = $this->get_file_stmt();
+		if(!isset($file)){
+			$this->grant = null;
+			$this->revoke = $db;
+			$this->diff_calculated = true;
+			return;
+		} elseif(!isset($db)){
+			$this->grant = $file;
+			$this->revoke = null;
+			$this->diff_calculated = true;
+			return;
 		}
-		return $grants;
+
+		unset($file['files']);
+		$dbdiff = array_udiff_assoc($db, $file, [$this,'compare']);
+		$filediff = array_udiff_assoc($file, $db, [$this,'compare']);
+
+		if(empty($dbdiff) && empty($filediff)){
+			$this->grant = null;
+			$this->revoke = null;
+			return;
+		}
+
+		list($remove, $add) = $this->file_is_subset($filediff, $dbdiff);
+		if(!empty($add)){
+			$this->grant = ['priv_types'=>$add] + $file;
+		}
+		if(!empty($remove)){
+			$this->revoke = ['priv_types'=>$remove] + $db;
+		}
 	}
 
-	private function desc_is_allowed($desc, $filter){
-		$pairkey = $desc['database'].':'.$desc['user'];
-		return empty($filter) || isset($filter[$pairkey]) && $filter[$pairkey];
+	private function get_file_stmt(){
+		$len = count($this->file_stmts);
+		switch($len){
+			case 0: return null;
+			case 1: return $this->file_stmts[0];
+			default: 
+				list($merged,$merge_error) = $this->merge_file_stmts($this->key, ...$this->file_stmts);
+				$this->is_merged = true;
+				$this->merge_error = $merge_error;
+				return $merged;
+		}
 	}
 
-	private function merge_into_grants(&$grants, $desc){
-		if(!isset($grants[$desc['key']])){
-			$grants[$desc['key']] = $desc;
-		} else {
-			foreach($desc['priv_types'] as $priv_type => $value){
-				if(is_array($value) && isset($grants[$desc['key']]['priv_types'][$priv_type]) && is_array($grants[$desc['key']]['priv_types'][$priv_type])){
-					foreach($value['column_list'] as $column_name){
-						$grants[$desc['key']]['priv_types'][$priv_type]['column_list'][] = $column_name;
+	private function compare($a, $b){
+		if(is_array($a)){
+			if(is_array($b)){
+				$adiff = array_udiff($a, $b, [$this,'compare']);
+				$bdiff = array_udiff($b, $a, [$this,'compare']);
+				if(empty($adiff)){
+					if(empty($bdiff)){
+						return 0;
+					} else {
+						return -1;
 					}
 				} else {
-					$grants[$desc['key']]['priv_types'][$priv_type] = $value;
+					return 1;
+				}
+			} else {
+				return -1;
+			}
+		} elseif(is_array($b)){
+			return 1;
+		} else {
+			if($a < $b) return -1;
+			if($a == $b) return 0;
+			if($a > $b) return 1;
+		}
+	}
+
+	private function file_is_subset($filediff, $dbdiff){
+		$remove = [];
+		$add = [];
+		$types = array_unique(array_merge(array_keys($filediff['priv_types']), array_keys($dbdiff['priv_types'])));
+		foreach($types as $type){
+			$filepriv = $filediff['priv_types'][$type] ?? null;
+			$dbpriv = $dbdiff['priv_types'][$type] ?? null;
+			if(isset($filepriv['column_list']) && isset($dbpriv['column_list'])){
+				// file columns, db columns
+				$file_columns = array_combine($filepriv['column_list'],$filepriv['column_list']);
+				$db_columns = array_combine($dbpriv['column_list'],$dbpriv['column_list']);
+
+				$remove_columns = array_udiff_assoc($db_columns,$file_columns,[$this,'compare']);
+				$add_columns = array_udiff_assoc($file_columns,$db_columns,[$this,'compare']);
+
+				if(!empty($remove_columns)){
+					$remove[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$remove_columns
+					];
+				}
+				if(!empty($add_columns)){
+					$add[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$add_columns
+					];
+				}
+			} elseif($filepriv != $dbpriv) {
+				if(isset($dbpriv['column_list'])){
+					// db columns
+					$remove[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$dbpriv['column_list']
+					];
+				} elseif(isset($dbpriv)) {
+					// db whole table
+					$remove[$type] = $type;
+				}
+				// else: db blank
+				if(isset($filepriv['column_list'])){
+					// file columns
+					$add[$type] = [
+						'priv_type'=>$type,
+						'column_list'=>$filepriv['column_list']
+					];
+				} elseif(isset($filepriv)) {
+					// file whole table
+					$add[$type] = $type;
+				}
+				// else: file blank
+			}
+			// else: file whole table, db whole table => match
+		}
+		return [$remove, $add];
+	}
+
+	private function merge_file_stmts($stmtkey,...$file_stmts){
+		$merged = [];
+		foreach($file_stmts as $stmt){
+			if(!isset($merged)) continue;
+			foreach($stmt as $key => $value){
+				if(!isset($merged[$key])){
+					$merged[$key] = $value;
+				} elseif($merged[$key]!=$value){
+					if($key == 'priv_types'){
+						$keys = [];
+						$values = [];
+						$priv_keys = array_unique(array_merge(array_keys($merged[$key]),array_keys($value)));
+						foreach($priv_keys as $priv_key){
+							$a = isset($merged[$key][$priv_key]) ? $merged[$key][$priv_key] : null;
+							$b = isset($value[$priv_key]) ? $value[$priv_key] : null;
+							if(is_string($a)){
+								$values[$a] = $a;
+								continue;
+							}
+							if(is_string($b)){
+								$values[$b] = $b;
+								continue;
+							}
+							if(!isset($a)){
+								$values[$b['priv_type']] = $b;
+								continue;
+							}
+							if(!isset($b)){
+								$values[$a['priv_type']] = $a;
+								continue;
+							}
+							$values[$a['priv_type']] = ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
+						}
+						$merged[$key] = $values;
+					} else {
+						$merged = null;
+						break;
+					}
 				}
 			}
 		}
+		$files = implode(",\n",array_unique($this->filenames));
+		if(isset($merged) && $merged['type']=='grant'){
+			return [$merged,null];
+		}
+		return [null,"Failed merging [$stmtkey] in files:\n$files"];
 	}
 }

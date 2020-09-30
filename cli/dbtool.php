@@ -32,7 +32,7 @@ $long_options = [
 	'config'=>OPTION_REQUIRES_VALUE,
 	'variables'=>OPTION_REQUIRES_KEY_VALUE,
 	'host'=>OPTION_REQUIRES_VALUE,
-	'mode'=>OPTION_REQUIRES_VALUE | OPTION_LIST_VALUE
+	'statement'=>OPTION_REQUIRES_VALUE | OPTION_LIST_VALUE
 ];
 $short_options = [
 	'h'=>'help',
@@ -43,9 +43,9 @@ $short_options = [
 	'v'=>'verbose',
 	'd'=>'database',
 	'c'=>'config',
-	'w'=>'var',
+	'w'=>'variables',
 	'h'=>'host',
-	'm'=>'mode'
+	's'=>'statement'
 ];
 
 $options = parse_options();
@@ -96,6 +96,7 @@ General Options:
   -dVALUE, --database=VALUE           An execution will use the given database, if a database isn't specified in the schemafile.
   -e, --execute                       Run the generated SQL to align the database with the provided schema.
   -f, --force                         Combined with -e: Run any SQL without asking first.
+  -sVALUE, --statement=VALUE               VALUE is a comma separated set of ALTER,CREATE,DROP,GRANT,REVOKE. Enabling a mode allows such statements.
   --no-alter                          An execution will not include ALTER statements.
   --no-create                         An execution will not include CREATE statements.
   --no-drop                           An execution will not include DROP statements.

@@ -12,6 +12,7 @@ class SQLFile {
 	private $vars;
 	public $error = '';
 	private $cache = [];
+	private $statements = null;
 
 	public function __construct($fname, $vars = []) {
 		if($fname[0] == '/'){
@@ -139,7 +140,7 @@ class SQLFile {
 	public static function parse_statement($stmt, $config = []){
 		$stmttype = '';
 		$stmt = trim($stmt);
-		$types = ['CREATE' => 'table', 'INSERT' => 'insert', 'GRANT' => 'grant', 'REVOKE' => 'grant'];
+		$types = ['CREATE TABLE' => 'table', 'INSERT' => 'insert', 'GRANT' => 'grant', 'REVOKE' => 'grant'];
 		foreach($types as $prefix => $type){
 			if(strpos($stmt, $prefix) === 0){
 				$stmttype = $type;

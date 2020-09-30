@@ -3,107 +3,106 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
-require_once __DIR__.'/db.php';
-require_once __DIR__.'/sqlfile.php';
-require_once __DIR__.'/format.php';
+class Definitiondiff {
+	private $dbname, $name, $file_stmt, $db_stmt, $filenames = [], $errors = [], $diff, $diff_sql, $diff_calculated = true, $parsed_database = false;
 
-class Diff {
-	private $files, $dbname, $dbtables;
-	public function __construct($files){
-		$this->files = $files;
-	}
-
-	public function run(){
-		$tables = [];
-		$errors = [];
-
-		list($db_tables, $create_database) = $this->get_db_tables();
-		foreach($this->files as $file){
-			$filename = $file->get_filename();
-			$stmts = $file->get_create_table_stmts();
-			if(is_array($stmts)) foreach($stmts as $stmt){
-				$file_table = SQLFile::parse_statement($stmt);
-				$name = $file_table['name'];
-				if(isset($file_table['error'])){
-					$errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" table `$name`: $file_table[error]"];
-				} elseif(isset($db_tables[$name])){
-					unset($db_tables[$name]);
-					$query = DB::sql("SHOW CREATE TABLE `$name`");
-					if($query->num_rows){
-						$db_table = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
-						if(isset($db_table['error'])){
-							$errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$db_table[name]`: $db_table[error]"];
-							continue;
-						}
-						$diff = $this->compare_tables($file_table, $db_table);
-						$diff['name'] = $name;
-						$diff['sourcefiles'] = [$filename];
-						$diff['sql'] = $this->generate_alter_queries($name, $diff);
-						$diff['type'] = 'intersection';
-						$diff['filetable'] = $file_table;
-						$tables[$name] = $diff;
-					}
-				} elseif(isset($tables[$name])){
-					$emit_collision = true;
-					$reason = "Table already specified";
-					if(isset($tables[$name]['filetable'])){
-						$diff = $this->compare_tables($tables[$name]['filetable'], $file_table);
-						if($diff['is_empty']){
-							$emit_collision = false;
-						} else {
-							$reason = "Table differs from a table with the same name";
-						}
-					}
-					if($emit_collision){
-						$first_other_file = isset($tables[$name]['sourcefiles']) ? $tables[$name]['sourcefiles'][0] : '[unknown file]';
-						$errors[] = ['errno'=>3,'error'=>"Collision Error in file \"$filename\" table `$name`:\n$reason in \"$first_other_file\""];
-					}
-				} else {
-					$file_table['sourcefile'] = $filename;
-					$tables[$name] = [
-						'name'=>$file_table['name'],
-						'type'=>'file_only',
-						'sourcefiles'=>[$filename],
-						'sql'=>[$file_table['statement'].';'],
-						'filetable'=>$file_table
-					];
-				}
-			}
+	public function __construct($name){
+		$names = explode('.',$name);
+		if(count($names)==2){
+			$this->dbname = $names[0];
+			$this->name = $names[1];
+		} else {
+			$this->name = $name;
 		}
-
-		$db_only_tables = isset($db_tables) ? array_keys($db_tables) : [];
-		return [
-			'errors'=> $errors,
-			'tables'=> $tables,
-			'db_only_tables'=> $db_only_tables,
-			'drop_queries'=> $this->build_drop_query($db_only_tables, $this->dbname),
-			'create_database'=> $create_database
-		];
 	}
 
-	private function get_db_tables(){
-		$create_database = null;
-		if(!isset($this->dbtables)){
-			$this->dbname = DB::escape(Config::get('database'));
-			if(empty($this->dbname)) return [null,null];
-			$tables = [];
-
-			$query = DB::sql("SHOW DATABASES LIKE '$this->dbname';");
-			if($query->num_rows){
-				DB::sql("USE `$this->dbname`;");
-				$query = DB::sql("SHOW TABLES IN `$this->dbname`;");
-				if($query) while($row = $query->fetch_row()){
-					$tables[] = $row[0];
-				}
+	public function from_file($stmt, $filename){
+		if(!isset($this->file_stmt)){
+			$this->file_stmt = $stmt;
+			if(isset($stmt['error'])){
+				$this->errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" table `$name`: $stmt[error]"];
+			}
+			$this->diff_calculated = false;
+			$this->filenames[] = $filename;
+		} else {
+			$diff = self::compare_tables($this->file_stmt, $stmt);
+			if($diff['is_empty']){
+				$this->filenames[] = $filename;
 			} else {
-				$create_database = "CREATE DATABASE IF NOT EXISTS `$this->dbname`;";
+				$msg = "Collision Error in file \"$filename\" table `$name`:\nTable differs from a table with the same name in \"$this->filenames[0]\"";
+				$this->errors[] = ['errno'=>3,'error'=>$msg];
 			}
-			$this->dbtables = array_combine($tables,$tables);
 		}
-		return [$this->dbtables, $create_database];
 	}
 
-	private function compare_tables($file_table, $db_table){
+	public function from_database($stmt){
+		$this->db_stmt = $stmt;
+		if(isset($stmt['error'])){
+			$this->errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$stmt[name]`: $stmt[error]"];
+		}
+		$this->diff_calculated = false;
+		$this->parsed_database = true;
+	}
+
+	private function get_db_stmt(){
+		if(!$this->parsed_database && isset($this->name)){
+			$query = DB::sql("SHOW CREATE TABLE `$this->name`");
+			if($query && $query->num_rows){
+				$stmt = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
+				if(isset($stmt['error'])){
+					$this->errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$stmt[name]`: $stmt[error]"];
+				}
+				$this->db_stmt = $stmt;
+			}
+
+			$this->parsed_database = true;
+		}
+		return $this->db_stmt;
+	}
+
+	public function get_create(){
+		$db_stmt = $this->get_db_stmt();
+		if(isset($this->file_stmt) && !isset($db_stmt) && !isset($this->file_stmt['error'])){
+			return [$this->file_stmt,$this->file_stmt['statement'].';'];
+		}
+		return [null,null];
+	}
+
+	public function get_alter(){
+		$db_stmt = $this->get_db_stmt();
+		if(isset($this->file_stmt) && isset($db_stmt) && !isset($this->file_stmt['error']) && !isset($db_stmt['error'])){
+			$this->diff();
+			return $this->diff;
+		}
+		return null;
+	}
+
+	public function get_drop(){
+		$db_stmt = $this->get_db_stmt();
+		if(!isset($this->file_stmt) && isset($db_stmt) && !isset($db_stmt['error'])){
+			$sql = "DROP TABLE `$this->dbname`.`$this->name`;";
+			return [$db_stmt['name'],$sql];
+		}
+		return [null,null];
+	}
+
+	public function get_errors(){
+		return $this->errors;
+	}
+
+	private function diff(){
+		if(!$this->diff_calculated){
+			$db_stmt = $this->get_db_stmt();
+			if(isset($db_stmt) && isset($this->file_stmt)){
+				$this->diff = self::compare_tables($this->file_stmt, $db_stmt);
+				$this->diff['sql'] = self::generate_alter_queries($this->name, $this->diff);
+			}
+			$this->diff_calculated = true;
+		}
+		return $this->diff;
+	}
+
+	private static function compare_tables($file_table, $db_table){
 		$db_key = 't1';
 		$file_key = 't2';
 		$file_columns = [];
@@ -205,9 +204,11 @@ class Diff {
 		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options,'is_empty'=>empty($columns)&&empty($keys)&&empty($options)];
 	}
 
-	private function generate_alter_queries($table_name, $table_diff){
+	private static function generate_alter_queries($table_name, $table_diff){
 		$drop_keys = [];
-		$alter_columns = [];
+		$add_columns = [];
+		$modify_columns = [];
+		$drop_columns = [];
 		$add_keys = [];
 		$alter_options = [];
 
@@ -217,16 +218,16 @@ class Diff {
 				$query = "ALTER TABLE `$table_name` MODIFY COLUMN ".Format::column_A_to_definition($diff['t2']);
 				if(isset($diff['t1']['after'])
 					&& $diff['t1']['after'] != $diff['t2']['after']){
-					$query .= $this->build_column_query_after($diff['t2']);
+					$query .= self::build_column_query_after($diff['t2']);
 				}
+				$modify_columns[] = $query.';';
 			} elseif(isset($diff['t2'])){
 				// add
-				$query = "ALTER TABLE `$table_name` ADD COLUMN ".Format::column_A_to_definition($diff['t2']).$this->build_column_query_after($diff['t2']);
+				$add_columns[] = "ALTER TABLE `$table_name` ADD COLUMN ".Format::column_A_to_definition($diff['t2']).self::build_column_query_after($diff['t2']).';';
 			} elseif(isset($diff['t1'])){
 				// drop
-				$query = "ALTER TABLE `$table_name` DROP COLUMN `$colname`";
+				$drop_columns[] = "ALTER TABLE `$table_name` DROP COLUMN `$colname`;";
 			}
-			$alter_columns[] = $query.';';
 		}
 
 		foreach($table_diff['keys'] as $keyname => $diff){
@@ -262,18 +263,10 @@ class Diff {
 			if(isset($query)) $alter_options[] = $query.';';
 		}
 
-		return array_merge($drop_keys,$alter_columns,$add_keys,$alter_options);
+		return array_merge($drop_keys,$add_columns,$modify_columns,$drop_columns,$add_keys,$alter_options);
 	}
 
-	private function build_drop_query($tables, $dbname){
-		$stmt_list = [];
-		if(isset($dbname)) foreach($tables as $table){
-			$stmt_list[$table] = "DROP TABLE `$dbname`.`$table`;";
-		}
-		return $stmt_list;
-	}
-
-	private function build_column_query_after($row){
+	private static function build_column_query_after($row){
 		if(isset($row['after'])){
 			if($row['after'] == '#FIRST'){
 				return ' FIRST';
@@ -284,4 +277,3 @@ class Diff {
 		return '';
 	}
 }
-?>

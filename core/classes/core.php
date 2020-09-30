@@ -4,8 +4,7 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__.'/config.php';
-require_once __DIR__.'/permissiondiff.php';
-require_once __DIR__.'/diff.php';
+require_once __DIR__.'/tablediff.php';
 require_once __DIR__.'/sqlfile.php';
 
 class Core {
@@ -86,10 +85,7 @@ class Core {
 		list($sqlfiles, $warnings) = self::sqlfiles();
 		if(!empty($warnings)) $this->warnings = $warnings;
 		if(empty($sqlfiles)) $this->error = 'No files found';
-		$diff = new Diff($sqlfiles);
-		$permission = new PermissionDiff($sqlfiles);
-		$result = $diff->run();
-		$this->result = $permission->run($result);
+		$this->result = Tablediff::run($sqlfiles);
 	}
 
 	public function execute($options = 0b111){
