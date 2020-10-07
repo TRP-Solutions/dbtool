@@ -97,7 +97,7 @@ class Tablediff {
 			} elseif($create && !empty($table->create)){
 				$table_obj = self::init_table($name, $table->sourcefiles,'file_only') + [
 					'filetable'=>$table->create,
-					'sql'=>$table->create_sql
+					'sql'=>[$table->create_sql]
 				];
 			} elseif($drop && !empty($table->drop)){
 				$result['db_only_tables'][] = $table->drop;
