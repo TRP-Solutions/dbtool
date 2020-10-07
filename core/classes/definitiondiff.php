@@ -4,6 +4,8 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 class Definitiondiff {
+	static private $known_tables;
+
 	private $dbname, $name, $file_stmt, $db_stmt, $filenames = [], $errors = [], $diff, $diff_sql, $diff_calculated = true, $parsed_database = false;
 
 	public function __construct($name){
@@ -44,15 +46,26 @@ class Definitiondiff {
 		$this->parsed_database = true;
 	}
 
+	private static function get_known_tables(){
+		$db = Config::get('database');
+		if(!isset(self::$known_tables[$db])){
+			$query = DB::sql("SHOW TABLES");
+			self::$known_tables[$db] = array_map(function($row){return $row[0];}, $query->fetch_all());
+		}
+		return self::$known_tables[$db];
+	}
+
 	private function get_db_stmt(){
 		if(!$this->parsed_database && isset($this->name)){
-			$query = DB::sql("SHOW CREATE TABLE `$this->name`");
-			if($query && $query->num_rows){
-				$stmt = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
-				if(isset($stmt['error'])){
-					$this->errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$stmt[name]`: $stmt[error]"];
+			if(in_array($this->name, self::get_known_tables())){
+				$query = DB::sql("SHOW CREATE TABLE `$this->name`");
+				if($query && $query->num_rows){
+					$stmt = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
+					if(isset($stmt['error'])){
+						$this->errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$stmt[name]`: $stmt[error]"];
+					}
+					$this->db_stmt = $stmt;
 				}
-				$this->db_stmt = $stmt;
 			}
 
 			$this->parsed_database = true;
@@ -71,8 +84,7 @@ class Definitiondiff {
 	public function get_alter(){
 		$db_stmt = $this->get_db_stmt();
 		if(isset($this->file_stmt) && isset($db_stmt) && !isset($this->file_stmt['error']) && !isset($db_stmt['error'])){
-			$this->diff();
-			return $this->diff;
+			return $this->diff();
 		}
 		return null;
 	}
