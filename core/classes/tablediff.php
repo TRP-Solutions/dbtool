@@ -194,8 +194,12 @@ class Tablediff {
 				self::merge_into_grants($grants, $desc);
 			}
 			foreach($users as $user){
-				if(preg_match("/^'([^']*)'(@'[^']+')?$/", $user, $matches)){
-					$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$matches[1]'");
+				$re1 = "^[']([^']*)['](?:@['][^']+['])?$";
+				$re2 = "^[`]([^`]*)[`](?:@[`][^`]+[`])?$";
+				$re = "/(?:$re1)|(?:$re2)/";
+				if(preg_match($re, $user, $matches)){
+					$username = empty($matches[1]) ? $matches[2] : $matches[1];
+					$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$username'");
 					if(!$result || !$result->num_rows){
 						continue;
 					}

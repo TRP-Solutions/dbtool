@@ -561,8 +561,10 @@ class SQLFile {
 		}
 
 		$desc['user'] = $pop();
+		if($desc['user'][0]=="'") $desc['user'] = str_replace("'", "`", $desc['user']);
 		if($e = $expect('@')) return $e;
 		$host = $pop();
+		if($host[0]=="'") $host = str_replace("'", "`", $host);
 		if(!isset($config['ignore_host']) || !$config['ignore_host']) $desc['user'] .= '@'.$host;
 		
 
