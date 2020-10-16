@@ -22,7 +22,7 @@ class Definitiondiff {
 		if(!isset($this->file_stmt)){
 			$this->file_stmt = $stmt;
 			if(isset($stmt['error'])){
-				$this->errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" table `$name`: $stmt[error]"];
+				$this->errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" table `$stmt[name]`: $stmt[error]"];
 			}
 			$this->diff_calculated = false;
 			$this->filenames[] = $filename;
@@ -31,7 +31,7 @@ class Definitiondiff {
 			if($diff['is_empty']){
 				$this->filenames[] = $filename;
 			} else {
-				$msg = "Collision Error in file \"$filename\" table `$name`:\nTable differs from a table with the same name in \"$this->filenames[0]\"";
+				$msg = "Collision Error in file \"$filename\" table `$stmt[name]`:\nTable differs from a table with the same name in \"$this->filenames[0]\"";
 				$this->errors[] = ['errno'=>3,'error'=>$msg];
 			}
 		}
@@ -255,8 +255,8 @@ class Definitiondiff {
 				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
 				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';
 				$query .= "KEY ";
-				if(isset($diff['t2']['name'])) $query .= $diff['t2']['name'];
-				$query .= '('.implode(',',$diff['t2']['cols']).');';
+				if(isset($diff['t2']['name'])) $query .= '`'.$diff['t2']['name'].'` ';
+				$query .= '(`'.implode('`,`',$diff['t2']['cols']).'`);';
 				$add_keys[] = $query;
 			}
 		}
