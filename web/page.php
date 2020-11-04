@@ -184,4 +184,3 @@ class Page {
 		echo self::$output;
 	}
 }
-?>

@@ -103,4 +103,4 @@ class DB {
 			$this->mysqli = $mysqli;
 		}
 	}
-}?>
+}

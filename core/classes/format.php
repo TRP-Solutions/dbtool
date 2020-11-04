@@ -196,4 +196,3 @@ class Format {
 		return isset($diff['t1']) ? (isset($diff['t2']) ? 'bg-info' : 'bg-danger') : 'bg-success';
 	}
 }
-?>

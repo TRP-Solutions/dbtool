@@ -238,4 +238,3 @@ function blank($msg, $exclude_context = false){
 		]];
 	}
 }
-?>
