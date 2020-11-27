@@ -5,6 +5,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__."/permissiondiff.php";
 require_once __DIR__."/definitiondiff.php";
+require_once __DIR__."/format.php";
 class Tablediff {
 	const CREATE = 0b1;
 	const ALTER = 0b10;
