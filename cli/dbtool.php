@@ -373,4 +373,3 @@ function fail($msg, $errno = 1){
 	echo $msg."\n";
 	exit($errno);
 }
-?>

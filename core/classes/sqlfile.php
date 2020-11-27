@@ -625,4 +625,3 @@ class SQLFile {
 		return $str;
 	}
 }
-?>

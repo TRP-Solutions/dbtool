@@ -177,4 +177,3 @@ class Core {
 		return [$sqlfiles, $errors];
 	}
 }
-?>
