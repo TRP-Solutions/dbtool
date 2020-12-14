@@ -4,6 +4,7 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__."/../core/classes/core.php";
+include_once __DIR__."/../config.php";
 
 function debug($msg){
 	echo json_encode($msg,JSON_PRETTY_PRINT)."\n";
@@ -77,7 +78,16 @@ if(isset($options['files'])) $config['files'] = $options['files'];
 if(empty($config['files']) && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
 if(TEST_RUN) echo "Config:\n".json_encode($config)."\n";
-$config['user'] = $config['user']!==false ? $config['user'] : get_current_user();
+if($config['user']===false){
+	if(defined('DEFAULT_USER')){
+		$config['user'] = DEFAULT_USER;
+	} else {
+		$config['user'] = get_current_user();
+	}
+}
+if($config['password'] === false && defined('DEFAULT_PASS')){
+	$config['password'] = DEFAULT_PASS;
+}
 if($config['password'] === true) $config['password'] = ask_for_password();
 
 run_config($config, $configdir);
@@ -91,21 +101,27 @@ php dbtool.php [OPTIONS] --config=CONFIGFILE
 
 General Options:
   -h, --help                          Displays this help text.
-
   -cVALUE, --config=VALUE             Loads a config file.
-  -dVALUE, --database=VALUE           An execution will use the given database, if a database isn't specified in the schemafile.
-  -e, --execute                       Run the generated SQL to align the database with the provided schema.
-  -f, --force                         Combined with -e: Run any SQL without asking first.
-  -sVALUE, --statement=VALUE          VALUE is a comma separated set of ALTER,CREATE,DROP,GRANT,REVOKE. Enabling a mode allows such statements.
-  --no-alter                          An execution will not include ALTER statements.
-  --no-create                         An execution will not include CREATE statements.
-  --no-drop                           An execution will not include DROP statements.
-  -p[VALUE], --password[=VALUE]       Use given password or if not set, request password before connecting to the database.
-  -uVALUE, --user=VALUE               Use the given username when connecting to the database.
+  -dVALUE, --database=VALUE           An execution will use the given database,
+                                       if a database isn't specified in the
+                                       schemafile.
+  -e, --execute                       Run the generated SQL to align the
+                                       database with the provided schema.
+  -f, --force                         Combined with -e: Run any SQL without
+                                       asking first.
+  -sVALUE, --statement=VALUE          VALUE is a comma separated set of ALTER,
+                                       CREATE,DROP,GRANT,REVOKE. Enabling a mode
+                                       allows such statements.
+  -p[VALUE], --password[=VALUE]       Use given password or if not set, request
+                                       password before connecting to the
+                                       database.
+  -uVALUE, --user=VALUE               Use the given username when connecting to
+                                       the database.
   -v, --verbose                       Write extra descriptive output.
-  -wKEY=VALUE, --variables KEY=VALUE  Define a variable to be inserted in the schema.
-
-  --test                              Run everything as usual, but without executing any SQL.
+  -wKEY=VALUE, --variables KEY=VALUE  Define a variable to be inserted in the
+                                       schema.
+  --test                              Run everything as usual, but without
+                                      executing any SQL.
 
 HELP;
 exit;
