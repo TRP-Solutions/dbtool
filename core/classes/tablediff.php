@@ -13,7 +13,7 @@ class Tablediff {
 	const GRANT = 0b1000;
 	const REVOKE = 0b10000;
 
-	static private $tables = [];
+	static private $tables = [], $database_error, $skipped_statements = 0;
 
 	private $name, $permissions = [], $definition = null,
 		$sourcefiles = [],
@@ -30,18 +30,26 @@ class Tablediff {
 		$users = [];
 		$user_filter = [];
 		$ignore_host = self::ignore_host();
+		$database_missing = Config::get('database') === null;
 		foreach($files as $file){
 			$filename = $file->get_filename();
 			$stmts = $file->get_all_stmts();
 			if(is_array($stmts)) foreach($stmts as $stmt){
 				$obj = SQLFile::parse_statement($stmt, ['ignore_host'=>$ignore_host]);
 				$is_grant = $obj['type'] == 'grant' || $obj['type'] == 'revoke';
-				if($is_grant || $obj['type'] == 'table'){
+				if($is_grant){
 					self::file_statement($obj, $filename);
-					if($is_grant){
-						if(!in_array($obj['user'], $users)) $users[] = $obj['user'];
-						$pairkey = $obj['database'].':'.$obj['user'];
-						$user_filter[$pairkey] = true;
+					if(!in_array($obj['user'], $users)) $users[] = $obj['user'];
+					$pairkey = $obj['database'].':'.$obj['user'];
+					$user_filter[$pairkey] = true;
+				} elseif($obj['type'] == 'table'){
+					if($database_missing){
+						if(!isset(self::$database_error)){
+							self::$database_error = true;
+						}
+						self::$skipped_statements += 1;
+					} else {
+						self::file_statement($obj, $filename);
 					}
 				}
 			}
@@ -57,6 +65,8 @@ class Tablediff {
 
 	static public function reset(){
 		self::$tables = [];
+		self::$database_error = null;
+		self::$skipped_statements = 0;
 	}
 
 	static public function get($name){
@@ -74,6 +84,10 @@ class Tablediff {
 			'drop_queries'=>[],
 			'create_database'=>null
 		];
+
+		if(self::$database_error){
+			$result['errors'][] = ['errno'=>4,'error'=>"Database missing. ".self::$skipped_statements." statement(s) skipped."];
+		}
 
 		$mode = self::read_mode();
 		$create = (bool) ($mode & self::CREATE);
