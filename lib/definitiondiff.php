@@ -60,7 +60,7 @@ class Definitiondiff {
 			if(in_array($this->name, self::get_known_tables())){
 				$query = DB::sql("SHOW CREATE TABLE `$this->name`");
 				if($query && $query->num_rows){
-					$stmt = SQLFile::parse_statement($query->fetch_assoc()['Create Table']);
+					$stmt = \Parser\statement($query->fetch_assoc()['Create Table']);
 					if(isset($stmt['error'])){
 						$this->errors[] = ['errno'=>2,'error'=>"Parse Error in database table `$stmt[name]`: $stmt[error]"];
 					}
@@ -132,7 +132,7 @@ class Definitiondiff {
 				$file_columns[$col['colname']] = $col;
 			} elseif($col['type'] == 'index'){
 				unset($col['type']); //compatibility with web diffview
-				$col['cols'] = array_map(['SQLFile','encode_index_column'], $col['index_columns']);
+				$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
 				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : $col['index_columns'][0]['name']);
 				if(isset($file_keys[$name])){
 					$i = 1;
@@ -188,7 +188,7 @@ class Definitiondiff {
 				}
 			} elseif($col['type'] == 'index'){
 				unset($col['type']); //compatibility with web diffview
-				$col['cols'] = array_map(['SQLFile','encode_index_column'], $col['index_columns']);
+				$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
 				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : implode(', ',$col['cols']));
 				if(!isset($file_keys[$name])) $keys[$name] = [$db_key=>$col];
 				else {

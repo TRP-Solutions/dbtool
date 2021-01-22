@@ -6,6 +6,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 require_once __DIR__."/permissiondiff.php";
 require_once __DIR__."/definitiondiff.php";
 require_once __DIR__."/format.php";
+require_once __DIR__."/parser.php";
 class Tablediff {
 	const CREATE = 0b1;
 	const ALTER = 0b10;
@@ -16,7 +17,7 @@ class Tablediff {
 	static private $tables = [], $database_error, $skipped_statements = 0;
 
 	private $name, $permissions = [], $definition = null,
-		$sourcefiles = [],
+		$sources = [],
 		$create = [], $create_sql = [],
 		$alter  = [], $alter_sql  = [],
 		$drop   = [], $drop_sql   = [],
@@ -24,21 +25,22 @@ class Tablediff {
 		$revoke = [], $revoke_sql = [],
 		$errors = [];
 
-	static public function run($files){
+	static public function run($sources){
 		self::reset();
 
 		$users = [];
 		$user_filter = [];
 		$ignore_host = self::ignore_host();
 		$database_missing = Config::get('database') === null;
-		foreach($files as $file){
-			$filename = $file->get_filename();
-			$stmts = $file->get_all_stmts();
+		
+		foreach($sources as $source){
+			$sourcename = $source->get_name();
+			$stmts = $source->get_stmts();
 			if(is_array($stmts)) foreach($stmts as $stmt){
-				$obj = SQLFile::parse_statement($stmt, ['ignore_host'=>$ignore_host]);
+				$obj = \Parser\statement($stmt, ['ignore_host'=>$ignore_host]);
 				$is_grant = $obj['type'] == 'grant' || $obj['type'] == 'revoke';
 				if($is_grant){
-					self::file_statement($obj, $filename);
+					self::file_statement($obj, $sourcename);
 					if(!in_array($obj['user'], $users)) $users[] = $obj['user'];
 					$pairkey = $obj['database'].':'.$obj['user'];
 					$user_filter[$pairkey] = true;
@@ -49,7 +51,7 @@ class Tablediff {
 						}
 						self::$skipped_statements += 1;
 					} else {
-						self::file_statement($obj, $filename);
+						self::file_statement($obj, $sourcename);
 					}
 				}
 			}
@@ -108,9 +110,9 @@ class Tablediff {
 			}
 			$table_obj = null;
 			if($alter && !empty($table->alter)){
-				$table_obj = self::init_table($name, $table->sourcefiles) + $table->alter;
+				$table_obj = self::init_table($name, $table->sources) + $table->alter;
 			} elseif($create && !empty($table->create)){
-				$table_obj = self::init_table($name, $table->sourcefiles,'file_only') + [
+				$table_obj = self::init_table($name, $table->sources,'file_only') + [
 					'filetable'=>$table->create,
 					'sql'=>[$table->create_sql]
 				];
@@ -120,7 +122,7 @@ class Tablediff {
 			}
 			if($revoke && !empty($table->revoke)){
 				if(!isset($table_obj)){
-					$table_obj = self::init_table($name, $table->sourcefiles);
+					$table_obj = self::init_table($name, $table->sources);
 				}
 				foreach($table->revoke as $key => $row){
 					$table_obj['permissions'][$key.'-revoke'] = $row;
@@ -129,7 +131,7 @@ class Tablediff {
 			}
 			if($grant && !empty($table->grant)){
 				if(!isset($table_obj)){
-					$table_obj = self::init_table($name, $table->sourcefiles);
+					$table_obj = self::init_table($name, $table->sources);
 				}
 				foreach($table->grant as $key => $row){
 					$table_obj['permissions'][$key.'-grant'] = $row;
@@ -143,9 +145,9 @@ class Tablediff {
 		return $result;
 	}
 
-	static private function init_table($name, $sourcefiles, $type = null){
-		if(!isset($type)) $type = empty($sourcefiles) ? 'database_only' : 'intersection';
-		return ['name'=>$name,'type'=>$type,'sourcefiles'=>array_unique($sourcefiles)];
+	static private function init_table($name, $sourcenames, $type = null){
+		if(!isset($type)) $type = empty($sourcenames) ? 'database_only' : 'intersection';
+		return ['name'=>$name,'type'=>$type,'sources'=>array_unique($sourcenames)];
 	}
 
 	static private function read_mode(){
@@ -221,7 +223,7 @@ class Tablediff {
 					$result = DB::sql("SHOW GRANTS FOR $user");
 					if($result){
 						while($row = $result->fetch_row()){
-							$obj = SQLFile::parse_statement($row[0], ['ignore_host'=>self::ignore_host()]);
+							$obj = \Parser\statement($row[0], ['ignore_host'=>self::ignore_host()]);
 							if(self::desc_is_allowed($obj,$filter)){
 								$grants[$obj['key']] = $obj;
 								$raw[$obj['key']] = $row[0];
@@ -264,23 +266,23 @@ class Tablediff {
 		$this->name = $name;
 	}
 
-	static public function file_statement($stmt, $filename){
+	static public function file_statement($stmt, $sourcename){
 		$name = self::get_table_name($stmt);
 		$diff = self::get($name);
 		if($stmt['type'] == 'table'){
 			if(!isset($diff->definition)) {
 				$diff->definition = new Definitiondiff($name);
 			}
-			$diff->definition->from_file($stmt, $filename);
+			$diff->definition->from_file($stmt, $sourcename);
 		} elseif($stmt['type'] == 'grant'){
 			if(!isset($stmt['key']) || !isset($stmt['database']) || !isset($stmt['table'])) debug($stmt);
 			$key = $stmt['key'];
 			if(!isset($diff->permissions[$key])){
 				$diff->permissions[$key] = new Permissiondiff($key);
 			}
-			$diff->permissions[$key]->from_file($stmt, $filename);
+			$diff->permissions[$key]->from_file($stmt, $sourcename);
 		}
-		$diff->sourcefiles[] = $filename;
+		$diff->sources[] = $sourcename;
 	}
 
 	static public function database_statement($stmt){

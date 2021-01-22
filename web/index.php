@@ -3,8 +3,8 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
-require_once "../core/classes/core.php";
-require_once "../core/classes/format.php";
+require_once "../lib/core.php";
+require_once "../lib/format.php";
 require_once "lib/heal-document/lib/HealHTML.php";
 if(file_exists("config.php")){
 	require_once "config.php";

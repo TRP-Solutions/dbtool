@@ -3,7 +3,7 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
-require_once __DIR__."/../core/classes/core.php";
+require_once __DIR__."/../lib/core.php";
 include_once __DIR__."/../config.php";
 
 function debug($msg){

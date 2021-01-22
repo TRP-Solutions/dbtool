@@ -53,7 +53,7 @@ class Format {
 			if(!empty($table['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($table['permissions'])];
 			$card = [
 				'title'=>$table['name'],
-				'subtitle'=>$table['type']=='database_only' ? 'Database Only' : 'Files: "'.implode('"; "',$table['sourcefiles']).'"',
+				'subtitle'=>$table['type']=='database_only' ? 'Database Only' : 'Files: "'.implode('"; "',$table['sources']).'"',
 				'sql'=>$table['sql'],
 				'id'=>'table:'.$table['name']
 			];
@@ -139,7 +139,7 @@ class Format {
 		if(isset($old_col['datatype']['character set'])) $new_col['char_set'] = $old_col['datatype']['character set'];
 		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
 
-		$new_col['type'] = SQLFile::encode_datatype($old_col['datatype']);
+		$new_col['type'] = \Parser\encode_datatype($old_col['datatype']);
 
 		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
 		if(isset($old_col['comment'])){
