@@ -69,10 +69,10 @@ class DB {
 
 	public static function use_configured(){
 		$db = Config::get('database');
-		if((!isset($this->db_in_use) || $this->$db_in_use != $db) && !empty($db)){
+		if((!isset(self::$db_in_use) || self::$db_in_use != $db) && !empty($db)){
 			$dbname = self::escape($db);
 			self::sql("USE `$dbname`;");
-			$this->db_in_use = $dbname;
+			self::$db_in_use = $dbname;
 		}
 	}
 
