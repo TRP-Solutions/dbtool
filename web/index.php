@@ -27,11 +27,12 @@ if(isset($_POST['dbusername']) && isset($_POST['dbpassword'])){
 if(isset($_GET['dbdisconnect'])){
 	unset($_SESSION['dbusername']);
 	unset($_SESSION['dbpassword']);
-}
-
-if(isset($_GET['dbconnect'])){
+} elseif(isset($_GET['dbconnect'])){
 	Page::login();
 	abort();
+} else if(!isset($_SESSION['dbusername']) && !isset($_SESSION['dbpassword']) && defined('DEFAULT_USER') && defined('DEFAULT_PASS')){
+	$_SESSION['dbusername'] = DEFAULT_USER;
+	$_SESSION['dbpassword'] = DEFAULT_PASS;
 }
 
 if(!defined('SCHEMAPATH')) define('SCHEMAPATH','.');
@@ -113,7 +114,62 @@ function prepare_login(&$json){
 		abort();
 	}
 }
+/*
+function cache_result($obj){
+	$batch_display_number = $obj->batch_number + 1;
 
+	$cache = ['batch_display_number'=>$obj->batch_number + 1];
+	if(!empty($obj->warnings)){
+		foreach($obj->warnings as $warning){
+			$cache['warnings'][] = $warning;
+		}
+	}
+
+	if($obj->error){
+		$cache['error'] = $obj->error;
+		return $cache;
+	}
+
+	$cache['result'] = $obj->get_result();
+	
+	if(isset($cache['result']['error'])){
+		return $cache;
+	}
+
+	if(isset($_POST['execute_part'])){
+		$execute = explode(':',$_POST['execute_part']);
+		if(count($execute) != 3){
+			$display_title();
+			Page::error("Invalid <execute_part> value");
+			return true;
+		}
+		if($execute[1]=='table'){
+			$executed_sql = $obj->execute_table($execute[2]);
+			$is_executed = true;
+		} elseif($execute[1]=='sql' && $execute[2]=='drop'){
+			$executed_sql = $obj->execute_drop();
+			$is_executed = true;
+		} elseif($execute[1]=='sql' && $execute[2]=='create_database'){
+			$executed_sql = $obj->execute_create_database();
+			$is_executed = true;
+		}
+	} elseif(isset($_POST['execute'])){
+		$executed_sql = $obj->execute();
+		$is_executed = true;
+	} else {
+		$schemas = Config::get('schema');
+		if(isset($schemas)){
+			if(is_string($schemas)) $schemas = [$schemas];
+			$schemas = array_map(function($s){return preg_replace("|^[./]+|",'',$s);}, $schemas);
+			$db = Config::get('database');
+			$title = empty($db) ? "Files" : "Comparing database `$db` with files";
+			$display_title();
+			Page::itemize($schemas, $title);
+		}
+	}
+	
+}
+*/
 function display_result($obj){
 	$batch_display_number = $obj->batch_number + 1;
 
