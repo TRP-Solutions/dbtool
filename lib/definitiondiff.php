@@ -49,8 +49,14 @@ class Definitiondiff {
 	private static function get_known_tables(){
 		$db = Config::get('database');
 		if(!isset(self::$known_tables[$db])){
-			$query = DB::sql("SHOW TABLES");
-			self::$known_tables[$db] = array_map(function($row){return $row[0];}, $query->fetch_all());
+			$query = DB::sql("SELECT DATABASE()");
+			$active_database = $query->num_rows ? $query->fetch_array()[0] : null;
+			if($active_database == $db){
+				$query = DB::sql("SHOW TABLES");
+				self::$known_tables[$db] = array_map(function($row){return $row[0];}, $query->fetch_all());
+			} else {
+				self::$known_tables[$db] = [];
+			}
 		}
 		return self::$known_tables[$db];
 	}
