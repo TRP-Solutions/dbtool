@@ -190,11 +190,7 @@ function run_config($config, $configdir){
 		$database = Config::get('database');
 		if(TEST_RUN) echo "[Test run, skipping execution]\n";
 		elseif($changes && $config['execute'] && ($config['force'] || ask_continue("Do you want to execute changes".(empty($database)?'?':" on database `$database`?")))){
-			$options = 0;
-			if(!$config['no-alter']) $options |= Core::ALTER;
-			if(!$config['no-create']) $options |= Core::CREATE;
-			if(!$config['no-drop']) $options |= Core::DROP;
-			$lines = $obj->execute($options);
+			$lines = $obj->execute();
 			if(VERBOSE){
 				echo "Execution:\n";
 				if($lines){
