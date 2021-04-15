@@ -55,18 +55,21 @@ class Source {
 
 		$line = $lines[$i];
 		$i += 1;
-		while(!empty($line)){
-			$result = self::parse_line(trim($line));
-			//echo json_encode($result).PHP_EOL;
-			if(!empty($result['str'])){
-				$statement[] = $result['str'];
-			}
-			if($result['end']){
-				$stmts[] = implode(' ', $statement);
-				$statement = [];
-				if(!empty($result['rest'])){
-					$line = $result['rest'];
-					continue;
+		while(isset($line)){
+			$line = trim($line);
+			if(!empty($line)){
+				$result = self::parse_line(trim($line));
+				//echo json_encode($result).PHP_EOL;
+				if(!empty($result['str'])){
+					$statement[] = $result['str'];
+				}
+				if($result['end']){
+					$stmts[] = implode(' ', $statement);
+					$statement = [];
+					if(!empty($result['rest'])){
+						$line = $result['rest'];
+						continue;
+					}
 				}
 			}
 			if(isset($lines[$i])){
