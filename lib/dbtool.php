@@ -21,7 +21,7 @@ class DBTool {
 		}
 		if(!Source::is_list_of($sources)){
 			if(!is_a($sources, 'Source')){
-				$sources = Source::from($sources, isset($options['source']) ? $options['source'] : null);
+				$sources = Source::from($sources, $options->get('source'));
 			}
 			$sources = [$sources];
 		}
