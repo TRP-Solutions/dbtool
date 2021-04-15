@@ -11,12 +11,13 @@ class DBTool {
 	private static $batch_counter = 0;
 
 	public static function load($sources, $options){
-		if(!DB::$isloggedin){
-			return self::error("Not logged in");
-		}
 		if(!is_a($options, 'Config')){
 			Config::load($options);
 			$options = Config::get_instance();
+		}
+		DB::login();
+		if(!DB::$isloggedin){
+			return self::error("Not logged in");
 		}
 		if(!Source::is_list_of($sources)){
 			if(!is_a($sources, 'Source')){
