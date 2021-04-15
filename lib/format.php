@@ -172,6 +172,7 @@ class Format {
 		} else {
 			$grantee = $row['GRANTEE'];
 		}
+		if($grantee[0]=="'") $grantee = str_replace("'", "`", $grantee);
 		$key = 'grant:'.$grantee.':`'.$row['TABLE_SCHEMA'].'`';
 		if(isset($row['TABLE_NAME'])){
 			$key .= '.`'.$row['TABLE_NAME'].'`';
