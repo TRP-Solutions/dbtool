@@ -3,8 +3,10 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+require_once __DIR__.'/description.php';
 class Permissiondiff {
-	private $key, $db_stmt, $file_stmts = [], $filenames = [], $diff_calculated = true, $grant, $revoke;
+	private $key, $db_stmt, $file_stmt, $filenames = [], $diff_calculated = true, $grant, $revoke;
 	public $is_merged = false, $merge_error = null;
 
 	public function __construct($key){
@@ -21,7 +23,12 @@ class Permissiondiff {
 	}
 
 	public function from_file($stmt, $filename){
-		$this->file_stmts[] = $stmt;
+		if(isset($this->file_stmt)){
+			$this->file_stmt = Description::merge($this->file_stmt, $stmt);
+			$this->is_merged = true;
+		} else {
+			$this->file_stmt = $stmt;
+		}
 		$this->diff_calculated = false;
 		$this->filenames[] = $filename;
 	}
@@ -43,7 +50,7 @@ class Permissiondiff {
 	private function diff(){
 		if($this->diff_calculated) return;
 		$db = $this->db_stmt;
-		$file = $this->get_file_stmt();
+		$file = $this->file_stmt;
 		if(!isset($file)){
 			$this->grant = null;
 			$this->revoke = $db;
@@ -56,35 +63,13 @@ class Permissiondiff {
 			return;
 		}
 
-		unset($file['files']);
-		$dbdiff = array_udiff_assoc($db, $file, [$this,'compare']);
-		$filediff = array_udiff_assoc($file, $db, [$this,'compare']);
+		list($remove, $add) = $db->diff($file);
 
-		if(empty($dbdiff) && empty($filediff)){
-			$this->grant = null;
-			$this->revoke = null;
-			return;
-		}
-
-		list($remove, $add) = $this->file_is_subset($filediff, $dbdiff);
 		if(!empty($add)){
-			$this->grant = ['priv_types'=>$add] + $file;
+			$this->grant = ['priv_types'=>$add] + $file->to_array();
 		}
 		if(!empty($remove)){
-			$this->revoke = ['priv_types'=>$remove] + $db;
-		}
-	}
-
-	private function get_file_stmt(){
-		$len = count($this->file_stmts);
-		switch($len){
-			case 0: return null;
-			case 1: return $this->file_stmts[0];
-			default: 
-				list($merged,$merge_error) = $this->merge_file_stmts($this->key, ...$this->file_stmts);
-				$this->is_merged = true;
-				$this->merge_error = $merge_error;
-				return $merged;
+			$this->revoke = ['priv_types'=>$remove] + $db->to_array();
 		}
 	}
 
@@ -131,90 +116,30 @@ class Permissiondiff {
 
 				if(!empty($remove_columns)){
 					$remove[$type] = [
-						'priv_type'=>$type,
+						'priv_type'=>$dbpriv['priv_type'],
 						'column_list'=>$remove_columns
 					];
 				}
 				if(!empty($add_columns)){
 					$add[$type] = [
-						'priv_type'=>$type,
+						'priv_type'=>$dbpriv['priv_type'],
 						'column_list'=>$add_columns
 					];
 				}
 			} elseif($filepriv != $dbpriv) {
-				if(isset($dbpriv['column_list'])){
-					// db columns
-					$remove[$type] = [
-						'priv_type'=>$type,
-						'column_list'=>$dbpriv['column_list']
-					];
-				} elseif(isset($dbpriv)) {
-					// db whole table
-					$remove[$type] = $type;
+				if(isset($dbpriv)){
+					// db columns or whole table
+					$remove[$type] = $dbpriv;
 				}
 				// else: db blank
-				if(isset($filepriv['column_list'])){
-					// file columns
-					$add[$type] = [
-						'priv_type'=>$type,
-						'column_list'=>$filepriv['column_list']
-					];
-				} elseif(isset($filepriv)) {
-					// file whole table
-					$add[$type] = $type;
+				if(isset($filepriv)){
+					// file columns or while table
+					$add[$type] = $filepriv;
 				}
 				// else: file blank
 			}
 			// else: file whole table, db whole table => match
 		}
 		return [$remove, $add];
-	}
-
-	private function merge_file_stmts($stmtkey,...$file_stmts){
-		$merged = [];
-		foreach($file_stmts as $stmt){
-			if(!isset($merged)) continue;
-			foreach($stmt as $key => $value){
-				if(!isset($merged[$key])){
-					$merged[$key] = $value;
-				} elseif($merged[$key]!=$value){
-					if($key == 'priv_types'){
-						$keys = [];
-						$values = [];
-						$priv_keys = array_unique(array_merge(array_keys($merged[$key]),array_keys($value)));
-						foreach($priv_keys as $priv_key){
-							$a = isset($merged[$key][$priv_key]) ? $merged[$key][$priv_key] : null;
-							$b = isset($value[$priv_key]) ? $value[$priv_key] : null;
-							if(is_string($a)){
-								$values[$a] = $a;
-								continue;
-							}
-							if(is_string($b)){
-								$values[$b] = $b;
-								continue;
-							}
-							if(!isset($a)){
-								$values[$b['priv_type']] = $b;
-								continue;
-							}
-							if(!isset($b)){
-								$values[$a['priv_type']] = $a;
-								continue;
-							}
-							$values[$a['priv_type']] = ['priv_type'=>$a['priv_type'],'column_list'=>array_merge($a['column_list'],$b['column_list'])];
-						}
-						$merged[$key] = $values;
-					} else {
-						$merged = null;
-						break;
-					}
-				}
-			}
-		}
-		$files = implode(",\n",array_unique($this->filenames));
-		if(isset($merged) && $merged['type']=='grant'){
-			return [$merged,null];
-		}
-		return [null,"Failed merging [$stmtkey] in files:\n$files"];
 	}
 }

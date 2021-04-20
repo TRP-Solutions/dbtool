@@ -7,6 +7,7 @@ require_once __DIR__."/permissiondiff.php";
 require_once __DIR__."/definitiondiff.php";
 require_once __DIR__."/format.php";
 require_once __DIR__."/parser.php";
+require_once __DIR__.'/description.php';
 class Tablediff {
 	const CREATE = 0b1;
 	const ALTER = 0b10;
@@ -194,20 +195,20 @@ class Tablediff {
 			/*
 			$result = DB::sql("SELECT * FROM `information_schema`.`schema_privileges` WHERE `table_schema` = '$db'");
 			foreach($result as $row){
-				$desc = Format::grant_row_to_description($row);
+				$desc = Description::from_grant_row($row);;
 				self::merge_into_grants($grants, $desc);
 			}
 			*/
 			$result = DB::sql("SELECT * FROM `information_schema`.`table_privileges` WHERE `table_schema` = '$db'");
 			foreach($result as $row){
-				$desc = Format::grant_row_to_description($row);
+				$desc = Description::from_grant_row($row);;
 				self::merge_into_grants($grants, $desc);
 			}
 			$result = DB::sql("SELECT * FROM `information_schema`.`column_privileges` WHERE `table_schema` = '$db' ORDER BY grantee");
 			$rows = [];
 			foreach($result as $row){
 				$rows[] = json_encode($row);
-				$desc = Format::grant_row_to_description($row);
+				$desc = Description::from_grant_row($row);;
 				self::merge_into_grants($grants, $desc);
 			}
 			foreach($users as $user){
@@ -225,8 +226,7 @@ class Tablediff {
 						while($row = $result->fetch_row()){
 							$obj = \Parser\statement($row[0], ['ignore_host'=>self::ignore_host()]);
 							if(self::desc_is_allowed($obj,$filter)){
-								$grants[$obj['key']] = $obj;
-								$raw[$obj['key']] = $row[0];
+								self::merge_into_grants($grants, $obj);
 							}
 							
 						}
@@ -250,15 +250,7 @@ class Tablediff {
 		if(!isset($grants[$desc['key']])){
 			$grants[$desc['key']] = $desc;
 		} else {
-			foreach($desc['priv_types'] as $priv_type => $value){
-				if(is_array($value) && isset($grants[$desc['key']]['priv_types'][$priv_type]) && is_array($grants[$desc['key']]['priv_types'][$priv_type])){
-					foreach($value['column_list'] as $column_name){
-						$grants[$desc['key']]['priv_types'][$priv_type]['column_list'][] = $column_name;
-					}
-				} else {
-					$grants[$desc['key']]['priv_types'][$priv_type] = $value;
-				}
-			}
+			$grants[$desc['key']] = Description::merge($grants[$desc['key']], $desc);
 		}
 	}
 
@@ -275,7 +267,6 @@ class Tablediff {
 			}
 			$diff->definition->from_file($stmt, $sourcename);
 		} elseif($stmt['type'] == 'grant'){
-			if(!isset($stmt['key']) || !isset($stmt['database']) || !isset($stmt['table'])) debug($stmt);
 			$key = $stmt['key'];
 			if(!isset($diff->permissions[$key])){
 				$diff->permissions[$key] = new Permissiondiff($key);
@@ -294,7 +285,6 @@ class Tablediff {
 			}
 			$diff->definition->from_database($stmt);
 		} elseif($stmt['type'] == 'grant'){
-			if(!isset($stmt['key']) || !isset($stmt['database']) || !isset($stmt['table'])) debug($stmt);
 			$key = $stmt['key'];
 			if(!isset($diff->permissions[$key])){
 				$diff->permissions[$key] = new Permissiondiff($key);
@@ -370,15 +360,10 @@ class Tablediff {
 	}
 
 	static private function flatten_stmt_obj($stmt){
-		if(isset($stmt['priv_types']) && is_array($stmt['priv_types'])){
-			foreach($stmt['priv_types'] as $key => $type){
-				if(is_array($type)){
-					$stmt['priv_types'][$key] = $type['priv_type'] .' (`'.implode('`, `',$type['column_list']).'`)';
-				}
-			}
-			$stmt['priv_types'] = implode(', ', $stmt['priv_types']);
+		if(is_array($stmt)){
+			$stmt = Description::from_array($stmt);
 		}
-		return $stmt;
+		return $stmt->to_flat_array();
 	}
 
 	static private function convert_grant_to_sql($stmt, $action){

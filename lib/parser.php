@@ -5,11 +5,9 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 
 namespace Parser;
+require_once __DIR__.'/description.php';
 
 function statement($stmt){
-	if(!is_string($stmt)){
-		debug($stmt, debug_backtrace());
-	}
 	$stmttype = '';
 	$stmt = trim($stmt);
 	$types = ['CREATE TABLE' => 'table', 'INSERT' => 'insert', 'GRANT' => 'grant', 'REVOKE' => 'grant'];
@@ -442,12 +440,13 @@ function statement_grant($stmt){
 		$next_token = current($tokens);
 		if($next_token[0] == '('){
 			$columns = preg_split('/[\(\)\s,`]+/', current($tokens), null, PREG_SPLIT_NO_EMPTY);
-			$priv_types[$token] = ['priv_type' => $token, 'column_list' => $columns];
+			$priv_types[$token.'*'] = ['priv_type' => $token, 'column_list' => $columns];
 			next($tokens);
 		} else {
 			$priv_types[$token] = $token;
 		}
 	}
+	ksort($priv_types);
 	$desc['priv_types'] = $priv_types;
 
 	if($e = $expect('ON')) return $e;
@@ -477,6 +476,7 @@ function statement_grant($stmt){
 	
 
 	$desc['key'] = $desc['type'].':'.$desc['user'].':'.$desc['database'].'.'.$desc['table'];
+	$desc = \Description::from_array($desc);
 	return $desc;
 }
 

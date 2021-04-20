@@ -165,34 +165,6 @@ class Format {
 		return $def;
 	}
 
-	public static function grant_row_to_description($row){
-		$ignore_host = defined('PERMISSION_IGNORE_HOST') && PERMISSION_IGNORE_HOST;
-		if($ignore_host){
-			$grantee = explode('@',$row['GRANTEE'])[0];
-		} else {
-			$grantee = $row['GRANTEE'];
-		}
-		if($grantee[0]=="'") $grantee = str_replace("'", "`", $grantee);
-		$key = 'grant:'.$grantee.':`'.$row['TABLE_SCHEMA'].'`';
-		if(isset($row['TABLE_NAME'])){
-			$key .= '.`'.$row['TABLE_NAME'].'`';
-		}
-		if(isset($row['COLUMN_NAME'])){
-			$priv_types = [$row['PRIVILEGE_TYPE'] => ['priv_type'=>$row['PRIVILEGE_TYPE'],'column_list'=>[$row['COLUMN_NAME']]]];
-		} else {
-			$priv_types = [$row['PRIVILEGE_TYPE'] => $row['PRIVILEGE_TYPE']];
-		}
-		$desc = [
-			'type' => 'grant',
-			'key' => $key,
-			'priv_types' => $priv_types,
-			'database' => '`'.$row['TABLE_SCHEMA'].'`',
-			'table' => isset($row['TABLE_NAME']) ? '`'.$row['TABLE_NAME'].'`' : null,
-			'user' => $grantee
-		];
-		return $desc;
-	}
-
 	private static function diff_class($diff){
 		return isset($diff['t1']) ? (isset($diff['t2']) ? 'bg-info' : 'bg-danger') : 'bg-success';
 	}
