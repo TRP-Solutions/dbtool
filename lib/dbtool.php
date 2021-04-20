@@ -6,6 +6,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 require_once __DIR__.'/config.php';
 require_once __DIR__.'/tablediff.php';
 require_once __DIR__.'/source.php';
+require_once __DIR__.'/db.php';
 
 class DBTool {
 	private static $batch_counter = 0;
