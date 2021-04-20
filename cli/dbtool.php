@@ -4,7 +4,6 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__."/../lib/core.php";
-include_once __DIR__."/../config.php";
 
 function debug($msg){
 	echo json_encode($msg,JSON_PRETTY_PRINT)."\n";
@@ -79,14 +78,7 @@ if(empty($config['files']) && empty($config['batch'])) help(); //help exits
 define('VERBOSE',$config['verbose']);
 if(TEST_RUN) echo "Config:\n".json_encode($config)."\n";
 if($config['user']===false){
-	if(defined('DEFAULT_USER')){
-		$config['user'] = DEFAULT_USER;
-	} else {
-		$config['user'] = get_current_user();
-	}
-}
-if($config['password'] === false && defined('DEFAULT_PASS')){
-	$config['password'] = DEFAULT_PASS;
+	$config['user'] = get_current_user();
 }
 if($config['password'] === true) $config['password'] = ask_for_password();
 
