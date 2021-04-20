@@ -76,6 +76,15 @@ class DBTool {
 		return $this->executed_sql;
 	}
 
+	public function execute_drop(){
+		$this->pre_execute();
+		foreach($this->result['drop_queries'] as $sql){
+			DB::sql($sql);
+			$this->executed_sql[] = $sql;
+		}
+		return $this->executed_sql;
+	}
+
 	private function pre_execute(){
 		Config::set_instance($this->config);
 		if(isset($this->result['create_database'])){
