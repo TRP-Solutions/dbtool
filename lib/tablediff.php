@@ -192,13 +192,11 @@ class Tablediff {
 		if(DB::$isloggedin){
 			$db = Config::get('database');
 			
-			/*
 			$result = DB::sql("SELECT * FROM `information_schema`.`schema_privileges` WHERE `table_schema` = '$db'");
 			foreach($result as $row){
 				$desc = Description::from_grant_row($row);;
 				self::merge_into_grants($grants, $desc);
 			}
-			*/
 			$result = DB::sql("SELECT * FROM `information_schema`.`table_privileges` WHERE `table_schema` = '$db'");
 			foreach($result as $row){
 				$desc = Description::from_grant_row($row);;

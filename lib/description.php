@@ -16,7 +16,8 @@ class Description implements ArrayAccess, JsonSerializable {
 		} else {
 			$priv_types = [$row['PRIVILEGE_TYPE']=>$row['PRIVILEGE_TYPE']];
 		}
-		return new Self('grant',$grantee,$row['TABLE_NAME'],$row['TABLE_SCHEMA'],$priv_types);
+		$table = isset($row['TABLE_NAME']) ? $row['TABLE_NAME'] : '*';
+		return new Self('grant',$grantee,$table,$row['TABLE_SCHEMA'],$priv_types);
 	}
 
 	public static function from_array($arr){
