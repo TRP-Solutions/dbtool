@@ -47,7 +47,7 @@ class Config {
 
 	public function read($key){
 		if(isset($this->json[$key]) && in_array($key, self::ALLOWED_KEYS)){
-			return !is_array($this->json[$key]) && in_array($key, self::FORCE_ARRAY) ? [$this->json[$key]] : $this->json[$key];
+			return !is_array($this->json[$key]) && in_array($key, self::FORCE_ARRAY) && !empty($this->json[$key])? [$this->json[$key]] : $this->json[$key];
 		} elseif(in_array($key, self::FORCE_ARRAY)){
 			return [];
 		}
