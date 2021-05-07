@@ -26,9 +26,6 @@ $long_options = [
 	'verbose'=>OPTION_VOID,
 	'test'=>OPTION_VOID,
 	'database'=>OPTION_REQUIRES_VALUE,
-	'no-alter'=>OPTION_VOID,
-	'no-create'=>OPTION_VOID,
-	'no-drop'=>OPTION_VOID,
 	'config'=>OPTION_REQUIRES_VALUE,
 	'variables'=>OPTION_REQUIRES_KEY_VALUE,
 	'host'=>OPTION_REQUIRES_VALUE,
@@ -101,9 +98,9 @@ General Options:
                                        database with the provided schema.
   -f, --force                         Combined with -e: Run any SQL without
                                        asking first.
-  -sVALUE, --statement=VALUE          VALUE is a comma separated set of ALTER,
-                                       CREATE,DROP,GRANT,REVOKE. Enabling a mode
-                                       allows such statements.
+  -sVALUE, --statement=VALUE          A comma separated subset of
+                                         ALTER,CREATE,DROP,GRANT,REVOKE
+                                       Enabling a mode allows such statements.
   -p[VALUE], --password[=VALUE]       Use given password or if not set, request
                                        password before connecting to the
                                        database.
@@ -215,9 +212,9 @@ function show_result($result){
 		elseif($table['type'] == 'file_only') $file_tables[] = $table;
 	}
 
-	$no_db = show_result_part($result['db_only_tables'], $result['drop_queries'], $config['no-drop'], 'in database', 'drop queries will remove them');
-	$no_file = show_result_tablelist($file_tables, $config['no-create'], 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
-	$no_intersect = show_result_tablelist($intersection_tables, $config['no-alter'], 'with differences', 'alter queries will align them');
+	$no_db = show_result_part($result['db_only_tables'], $config['no-drop'], 'in database', 'drop queries will remove them');
+	$no_file = show_result_tablelist($file_tables, 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
+	$no_intersect = show_result_tablelist($intersection_tables, 'with differences', 'queries will align them');
 
 	if($no_db && $no_file && $no_intersect){
 		echo "No differences found.\n\n";
@@ -226,29 +223,25 @@ function show_result($result){
 	return true;
 }
 
-function show_result_tablelist($tables, $ignore, $descriptor, $sql_text, $sql_format = null){
+function show_result_tablelist($tables, $descriptor, $sql_text, $sql_format = null){
 	$tablenames = array_map(function($t){return $t['name'];}, $tables);
 	$sql = array_map(function($t){return $t['sql'];}, $tables);
 	if(!empty($sql)){
 		$sql = array_merge(...$sql);
 		if(isset($sql_format)) $sql = array_map($sql_format, $sql);
 	}
-	return show_result_part($tablenames, $sql, $ignore, $descriptor, $sql_text);
+	return show_result_part($tablenames, $sql, $descriptor, $sql_text);
 }
 
-function show_result_part($tablenames, $sql, $ignore, $descriptor, $sql_text){
+function show_result_part($tablenames, $sql, $descriptor, $sql_text){
 	if(empty($tablenames)) return true;
 
 	$count = count($tablenames);
-	if($ignore){
-		if(VERBOSE) echo "Ignoring $count table(s) $descriptor.\n";
-	} else {
-		echo "Found $count table(s) $descriptor:\n\t";
-		echo implode(', ',$tablenames)."\n\n";
-		if(VERBOSE){
-			echo "The following $sql_text:\n\t";
-			echo implode("\n\t",explode("\n",implode("\n",$sql)))."\n\n";
-		}
+	echo "Found $count table(s) $descriptor:\n\t";
+	echo implode(', ',$tablenames)."\n\n";
+	if(VERBOSE){
+		echo "The following $sql_text:\n\t";
+		echo implode("\n\t",explode("\n",implode("\n",$sql)))."\n\n";
 	}
 }
 
