@@ -5,7 +5,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__."/../lib/core.php";
 
-function debug($msg){
+function debug(...$msg){
 	echo json_encode($msg,JSON_PRETTY_PRINT)."\n";
 }
 
@@ -204,12 +204,12 @@ function show_result($result){
 
 	$intersection_tables = [];
 	$file_tables = [];
-	$unknown_types = [];
 
 	foreach($result['tables'] as $table){
 		if(empty($table['sql'])) continue;
 		if($table['type'] == 'intersection') $intersection_tables[] = $table;
 		elseif($table['type'] == 'file_only') $file_tables[] = $table;
+		elseif($table['type'] == 'database_only') $intersection_tables[] = $table;
 	}
 
 	$no_db = show_result_part($result['db_only_tables'], $result['drop_queries'], 'in database', 'drop queries will remove them');
