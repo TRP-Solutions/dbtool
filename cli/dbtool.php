@@ -212,7 +212,7 @@ function show_result($result){
 		elseif($table['type'] == 'file_only') $file_tables[] = $table;
 	}
 
-	$no_db = show_result_part($result['db_only_tables'], $config['no-drop'], 'in database', 'drop queries will remove them');
+	$no_db = show_result_part($result['db_only_tables'], $result['drop-queries'], 'in database', 'drop queries will remove them');
 	$no_file = show_result_tablelist($file_tables, 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
 	$no_intersect = show_result_tablelist($intersection_tables, 'with differences', 'queries will align them');
 
