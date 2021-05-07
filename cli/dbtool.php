@@ -109,6 +109,7 @@ General Options:
   -v, --verbose                       Write extra descriptive output.
   -wKEY=VALUE, --variables KEY=VALUE  Define a variable to be inserted in the
                                        schema.
+  --host=VALUE                        The database host to connect to.
   --test                              Run everything as usual, but without
                                       executing any SQL.
 
