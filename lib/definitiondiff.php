@@ -189,7 +189,7 @@ class Definitiondiff {
 						//unset($col['after']);
 						//unset($file_columns[$name]['after']);
 					}
-					if($col != $file_columns[$name]) $columns[$name] = [$db_key=>$col,$file_key=>$file_columns[$name]];
+					if(!self::column_is_equal($col, $file_columns[$name])) $columns[$name] = [$db_key=>$col,$file_key=>$file_columns[$name]];
 					unset($file_columns[$name]);
 				}
 			} elseif($col['type'] == 'index'){
@@ -220,6 +220,54 @@ class Definitiondiff {
 			if(!isset($db_table['table_options'][$key])) $options[$key] = [$file_key=>$value];
 		}
 		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options,'is_empty'=>empty($columns)&&empty($keys)&&empty($options)];
+	}
+
+	private static function column_is_equal($col_a, $col_b){
+		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
+		foreach($keys as $key){
+			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_a)){
+				return false;
+			}
+			if($col_a[$key] != $col_b[$key]) {
+				if($key == 'default'){
+					return self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms);
+				} else {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private static $default_synonyms = [
+		['current_timestamp','current_timestamp()','now()']
+	];
+	private static function is_synonym($a, $b, $synonym_lists){
+		$a = mb_strtolower($a);
+		$b = mb_strtolower($b);
+		$a_match = false;
+		$b_match = false;
+		foreach($synonym_lists as $synonym_list){
+			foreach($synonym_list as $term){
+				if($a == $term){
+					$a_match = true;
+					if($a_match && $b_match){
+						return true;
+					}
+				}
+				if($b == $term){
+					$b_match = true;
+					if($a_match && $b_match){
+						return true;
+					}
+				}
+			}
+			// if either term matches at this point, then the terms are not in the same synonym list
+			// this optimization assumes the synonym lists aren't malformed by having the a term in multiple lists
+			if($a_match || $b_match) return false;
+		}
+		// neither term was found in the synonym lists
+		return false;
 	}
 
 	private static function generate_alter_queries($table_name, $table_diff){
