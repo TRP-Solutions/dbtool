@@ -225,7 +225,7 @@ class Definitiondiff {
 	private static function column_is_equal($col_a, $col_b){
 		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
 		foreach($keys as $key){
-			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_a)){
+			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
 				return false;
 			}
 			if($col_a[$key] != $col_b[$key]) {
