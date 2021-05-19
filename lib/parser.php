@@ -289,11 +289,7 @@ function statement_table($stmt){
 				}
 				$len = strlen($coldesc['default']);
 				$is_stringy = in_array($coldesc['datatype']['name'],$type_stringy);
-				if($is_stringy){
-					if($coldesc['default'] == "''" && $coldesc['nullity'] == 'NOT NULL'){
-						unset($coldesc['default']);
-					}
-				} elseif($coldesc['default'][0]=="'" && $coldesc['default'][$len-1]=="'"){
+				if(!$is_stringy && $coldesc['default'][0]=="'" && $coldesc['default'][$len-1]=="'"){
 					$coldesc['default'] = substr($coldesc['default'], 1, -1);
 				}
 			}
