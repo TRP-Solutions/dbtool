@@ -231,6 +231,8 @@ class Definitiondiff {
 			if($col_a[$key] != $col_b[$key]) {
 				if($key == 'default'){
 					return self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms);
+				} elseif($key == 'type'){
+					return self::compare_type($col_a[$key],$col_b[$key]);
 				} else {
 					return false;
 				}
@@ -268,6 +270,13 @@ class Definitiondiff {
 		}
 		// neither term was found in the synonym lists
 		return false;
+	}
+	private static function compare_type($a, $b){
+		$pattern = "/\([0-9 ]+\)/";
+		$a_replace = preg_replace($pattern, '', $a);
+		if($a_replace == $b) return true;
+		$b_replace = preg_replace($pattern, '', $b);
+		return $b_replace == $a;
 	}
 
 	private static function generate_alter_queries($table_name, $table_diff){
