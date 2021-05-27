@@ -113,7 +113,9 @@ class Definitiondiff {
 			$db_stmt = $this->get_db_stmt();
 			if(isset($db_stmt) && isset($this->file_stmt)){
 				$this->diff = self::compare_tables($this->file_stmt, $db_stmt);
-				$this->diff['sql'] = self::generate_alter_queries($this->name, $this->diff);
+				if(isset($this->diff)){
+					$this->diff['sql'] = self::generate_alter_queries($this->name, $this->diff);
+				}
 			}
 			$this->diff_calculated = true;
 		}
@@ -219,7 +221,9 @@ class Definitiondiff {
 		foreach($file_table['table_options'] as $key => $value){
 			if(!isset($db_table['table_options'][$key])) $options[$key] = [$file_key=>$value];
 		}
-		return ['columns'=>$columns,'keys'=>$keys,'options'=>$options,'is_empty'=>empty($columns)&&empty($keys)&&empty($options)];
+		if(!empty($columns) || !empty($keys) || !empty($options)){
+			return ['columns'=>$columns,'keys'=>$keys,'options'=>$options];
+		}
 	}
 
 	private static function column_is_equal($col_a, $col_b){
