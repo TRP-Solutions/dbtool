@@ -251,9 +251,8 @@ function statement_table($stmt){
 	};
 
 	$last_column = '#FIRST';
-	$column_ordinal = 0;
 	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type,
-			$optional_index_name, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column, &$column_ordinal){
+			$optional_index_name, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column){
 		$coldesc = [];
 		$is_unique = null;
 		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT'])){
@@ -297,7 +296,6 @@ function statement_table($stmt){
 			if(match_token($tokens,'AUTO_INCREMENT')) $coldesc['auto_increment'] = true;
 			if(match_token($tokens,'COMMENT')) $coldesc['comment'] = $pop();
 
-			$coldesc['ordinal_number'] = $column_ordinal++;
 			$coldesc['after'] = $last_column;
 			$last_column = $coldesc['name'];
 		}

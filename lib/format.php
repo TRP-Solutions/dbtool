@@ -151,7 +151,6 @@ class Format {
 		}
 
 		$new_col['after'] = $old_col['after'];
-		$new_col['ordinal_number'] = $old_col['ordinal_number'];
 
 		return $new_col;
 	}

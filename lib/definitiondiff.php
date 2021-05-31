@@ -126,107 +126,84 @@ class Definitiondiff {
 		$db_key = 't1';
 		$file_key = 't2';
 		$file_columns = [];
-		$file_keys = [];
-
-		// FIXME : avoid duplicate "AFTER" moves
-
-		$file_ordinals = [];
+		$file_indexes = [];
+		$db_columns = [];
+		$db_indexes = [];
 
 		foreach($file_table['columns'] as $col){
-			if($col['type'] == 'column'){
-				$col = Format::column_description_to_A($col); //compatibility with web diffview
-				$file_ordinals[$col['colname']] = $col['ordinal_number'];
-				unset($col['ordinal_number']);
-				$file_columns[$col['colname']] = $col;
-			} elseif($col['type'] == 'index'){
-				unset($col['type']); //compatibility with web diffview
-				$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
-				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : $col['index_columns'][0]['name']);
-				if(isset($file_keys[$name])){
-					$i = 1;
-					$basename = $name;
-					while(isset($file_keys[$name])){
-						$name = "{$basename}_$i";
-						$i++;
-					}
+			self::organize_column($col, $file_columns, $file_indexes);
+		}
+
+		foreach($db_table['columns'] as $col){
+			self::organize_column($col, $db_columns, $db_indexes);
+		}
+
+		$file_column_order = array_keys($file_columns);
+		$db_column_order = array_keys($db_columns);
+		if($file_column_order != $db_column_order){
+			$stable_columns = self::longest_common_subsequence($file_column_order, $db_column_order);
+			foreach($stable_columns as $colname){
+				$file_columns[$colname]['after'] = null;
+				$db_columns[$colname]['after'] = null;
+			}
+			$moving_columns = array_diff($file_column_order, $stable_columns);
+			foreach($moving_columns as $colname){
+				if($file_columns[$colname]['after'] == $db_columns[$colname]['after']){
+					$db_columns[$colname]['after'] .= ' (moved)';
 				}
-				if(!isset($col['name']) && $name != 'PRIMARY') $col['name'] = $name;
-				$file_keys[$name] = $col;
 			}
 		}
 
-		$db_ordinals = [];
-		$file_to_db_order_offset = 0;
-		$out_of_order = [];
-		$columns = [];
-		$keys = [];
-		foreach($db_table['columns'] as $col){
-			if($col['type'] == 'column'){
-				$col = Format::column_description_to_A($col); //compatibility with web diffview
-				$name = $col['colname'];
-				if(isset($file_columns[$name]) && ($file_to_db_order_offset || $col['after'] != $file_columns[$name]['after'])){
-					$search = array_search($col['ordinal_number'],$file_ordinals);
-					if(in_array($search,$out_of_order)) $file_to_db_order_offset -= 1;
-				}
-				if(!isset($file_ordinals[$name]) || $file_ordinals[$name] + $file_to_db_order_offset != $col['ordinal_number']){
-					if(isset($file_ordinals[$name]) && $file_ordinals[$name] > $col['ordinal_number']){
-						if($file_ordinals[$file_columns[$name]['after']] + $file_to_db_order_offset == $col['ordinal_number']){
-							// a column was moved to the ordinal position of this column
-							$out_of_order[] = $file_columns[$name]['after'];
-							$file_to_db_order_offset -= 1;
-						} else {
-							// this column was moved to later in the order
-							$out_of_order[] = $name;
-							$file_to_db_order_offset += 1;
-						}
-					}
-				}
-				
-				$db_ordinals[$name] = $col['ordinal_number'];
-				unset($col['ordinal_number']);
-				if(!isset($file_columns[$name])) $columns[$name] = [$db_key=>$col];
-				else {
-					if($col['after'] != $file_columns[$name]['after']
-						&& !in_array($name, $out_of_order)){
-						//unset($col['after']);
-						//unset($file_columns[$name]['after']);
-					}
-					if(!self::column_is_equal($col, $file_columns[$name])) $columns[$name] = [$db_key=>$col,$file_key=>$file_columns[$name]];
-					unset($file_columns[$name]);
-				}
-			} elseif($col['type'] == 'index'){
-				unset($col['type']); //compatibility with web diffview
-				$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
-				$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : implode(', ',$col['cols']));
-				if(!isset($file_keys[$name])) $keys[$name] = [$db_key=>$col];
-				else {
-					if($col != $file_keys[$name]) $keys[$name] = [$db_key=>$col,$file_key=>$file_keys[$name]];
-					unset($file_keys[$name]);
-				}
-			}
-		}
-		foreach($file_columns as $name => $col){
-			$columns[$name] = [$file_key=>$col];
-		}
-		foreach($file_keys as $name => $col){
-			$keys[$name] = [$file_key=>$col];
-		}
-		$options = [];
+		$columns = self::compare_elems($file_columns, $db_columns, $file_key, $db_key, ['DefinitionDiff','column_is_equal']);
+		$keys = self::compare_elems($file_indexes, $db_indexes, $file_key, $db_key);
+
 		$ignore_db_only_options = ['AUTO_INCREMENT'];
-		foreach($db_table['table_options'] as $key => $value){
-			if(!isset($file_table['table_options'][$key])){
-				if(!in_array($key, $ignore_db_only_options)) $options[$key] = [$db_key=>$value];
-			} elseif($file_table['table_options'][$key] != $value) $options[$key] = [$db_key=>$value,$file_key=>$file_table['table_options'][$key]];
-		}
-		foreach($file_table['table_options'] as $key => $value){
-			if(!isset($db_table['table_options'][$key])) $options[$key] = [$file_key=>$value];
-		}
+		$db_options = array_filter($db_table['table_options'], function($key) use ($ignore_db_only_options){
+			return !in_array($key, $ignore_db_only_options);
+		}, ARRAY_FILTER_USE_KEY);
+		$options = self::compare_elems($file_table['table_options'], $db_options, $file_key, $db_key);
+
 		if(!empty($columns) || !empty($keys) || !empty($options)){
 			return ['columns'=>$columns,'keys'=>$keys,'options'=>$options];
 		}
 	}
 
+	private static function compare_elems($file_inputs, $db_inputs, $file_key, $db_key, $is_equal = null){
+		$output = [];
+		$names = array_unique(array_merge(array_keys($file_inputs),array_keys($db_inputs)));
+		foreach($names as $name){
+			$file_elem = isset($file_inputs[$name]) ? $file_inputs[$name] : null;
+			$db_elem = isset($db_inputs[$name]) ? $db_inputs[$name] : null;
+			$equality = isset($is_equal) ? $is_equal($file_elem, $db_elem) : $file_elem == $db_elem;
+			if(!$equality){
+				$output[$name] = array_filter([$db_key=>$db_elem, $file_key=>$file_elem]);
+			}
+		}
+		return $output;
+	}
+
+	private static function organize_column($col, &$columns, &$keys){
+		if($col['type'] == 'column'){
+			$columns[$col['name']] = Format::column_description_to_A($col); //compatibility with web diffview
+		} elseif($col['type'] == 'index'){
+			unset($col['type']); //compatibility with web diffview
+			$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
+			$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : $col['cols'][0]);
+			if(isset($keys[$name])){
+				$i = 1;
+				$basename = $name;
+				while(isset($keys[$name])){
+					$name = "{$basename}_$i";
+					$i++;
+				}
+			}
+			if(!isset($col['name']) && $name != 'PRIMARY') $col['name'] = $name;
+			$keys[$name] = $col;
+		}
+	}
+
 	private static function column_is_equal($col_a, $col_b){
+		if(!isset($col_a) || !isset($col_b)) return false;
 		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
 		foreach($keys as $key){
 			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
@@ -354,5 +331,59 @@ class Definitiondiff {
 			}
 		}
 		return '';
+	}
+
+	private static $lcs_cache;
+	private static function longest_common_subsequence($x, $y){
+		// reset cache to avoid unnecessarily large memory use
+		self::$lcs_cache = [];
+		return self::_longest_common_subsequence($x,$y);
+	}
+
+	private static function _longest_common_subsequence($x, $y){
+		/*
+		inspired by
+		https://en.wikipedia.org/wiki/Longest_common_subsequence_problem#Solution_for_two_sequences
+		fetched 2021-05-28
+		*/
+		$cache_index = implode(';',$x).'|'.implode(';',$y);
+
+		if(!isset($x[0]) || !isset($y[0])){
+			// if either array is empty, the LCS is empty
+			return [];
+		}
+		if(isset(self::$lcs_cache[$cache_index])){
+			// if we have calculated the LCS before, fetch it from the cache
+			return self::$lcs_cache[$cache_index];
+		}
+		if($x[0] == $y[0]){
+			// if the first elements of the two arrays match,
+			// the LCS is that first element followed by the LCS of the two arrays with that element removed
+			$result = self::_longest_common_subsequence(
+				array_slice($x, 1),
+				array_slice($y, 1)
+			);
+			array_unshift($result, $x[0]);
+			// store calculated result in the cache
+			self::$lcs_cache[$cache_index] = $result;
+			return $result;
+		} else {
+			// if the first elements of the two arrays DON'T match,
+			// then the LCS is equal to the one of the two LCSs
+			// where the first element is removed from either array
+			$a = self::_longest_common_subsequence(array_slice($x, 1),$y);
+			$b = self::_longest_common_subsequence($x,array_slice($y, 1));
+
+			// pick the longest LCS of the two and cache the result
+			// if their equally long arbitrarily pick one
+			// here we pick $a (LCS where one element is removed from $x)
+			if(count($a) >= count($b)){
+				self::$lcs_cache[$cache_index] = $a;
+				return $a;
+			} else {
+				self::$lcs_cache[$cache_index] = $b;
+				return $b;
+			}
+		}
 	}
 }
