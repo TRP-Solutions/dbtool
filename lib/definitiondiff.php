@@ -210,13 +210,13 @@ class Definitiondiff {
 				return false;
 			}
 			if($col_a[$key] != $col_b[$key]) {
-				if($key == 'default'){
-					return self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms);
-				} elseif($key == 'type'){
-					return self::compare_type($col_a[$key],$col_b[$key]);
-				} else {
-					return false;
+				if(
+					$key == 'default' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
+					|| $key == 'type' && self::compare_type($col_a[$key],$col_b[$key])
+				){
+					continue;
 				}
+				return false;
 			}
 		}
 		return true;
