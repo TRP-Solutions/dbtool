@@ -148,7 +148,10 @@ class Definitiondiff {
 			}
 			$moving_columns = array_diff($file_column_order, $stable_columns);
 			foreach($moving_columns as $colname){
-				if($file_columns[$colname]['after'] == $db_columns[$colname]['after']){
+				if(isset($file_columns[$colname])
+					&& isset($db_columns[$colname])
+					&& $file_columns[$colname]['after'] == $db_columns[$colname]['after']
+				){
 					$db_columns[$colname]['after'] .= ' (moved)';
 				}
 			}
