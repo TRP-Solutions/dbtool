@@ -56,7 +56,7 @@ class Description implements ArrayAccess, JsonSerializable {
 		}
 	}
 
-	private $key, $type, $user, $table, $database, $priv_types;
+	private $key, $type, $user, $table, $database, $priv_types, $original_priv_types;
 
 	private function __construct($type, $user, $table, $database, $priv_types){
 		if($user[0]=="'") $user = str_replace("'", "`", $user);
@@ -107,6 +107,27 @@ class Description implements ArrayAccess, JsonSerializable {
 		}
 
 		return $this->file_is_subset($idealdiff, $dbdiff);
+	}
+
+	public function schema_statement($schema_stmt){
+		$table = ['priv_types'=>$this->priv_types];
+		$schema = ['priv_types'=>$schema_stmt->priv_types];
+		$tablediff = array_udiff_assoc($table, $schema, [$this,'compare']);
+
+		if(empty($tablediff)){
+			$this->set_shadowing_priv_types([]);
+		} else {
+			$schemadiff = array_udiff_assoc($schema, $table, [$this,'compare']);
+			$subset = $this->file_is_subset($tablediff, $schemadiff);
+			$this->set_shadowing_priv_types($subset[1]);
+		}
+	}
+
+	private function set_shadowing_priv_types($priv_types){
+		if(!isset($this->original_priv_types)){
+			$this->original_priv_types = $this->priv_types;
+		}
+		$this->priv_types = $priv_types;
 	}
 
 	private function compare($a, $b){

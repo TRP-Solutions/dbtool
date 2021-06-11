@@ -6,7 +6,8 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 
 require_once __DIR__.'/description.php';
 class Permissiondiff {
-	private $key, $db_stmt, $file_stmt, $filenames = [], $diff_calculated = true, $grant, $revoke;
+	static private $file_schema_permissions = [], $db_schema_permissions = [], $schema_changed = [];
+	private $key, $db_stmt, $file_stmt, $filenames = [], $diff_calculated = true, $grant, $revoke, $schema_change_version = 0, $schema_key;
 	public $is_merged = false, $merge_error = null;
 
 	public function __construct($key){
@@ -20,6 +21,15 @@ class Permissiondiff {
 	public function from_database($stmt){
 		$this->db_stmt = $stmt;
 		$this->diff_calculated = false;
+
+		$schema_key = $this->schema_key();
+		if(!isset(Self::$schema_changed[$schema_key])) Self::$schema_changed[$schema_key] = 0;
+
+		if($this->db_stmt['table'] == '*'){
+			Self::$db_schema_permissions[$schema_key] = $this->db_stmt;
+			Self::$schema_changed[$schema_key] += 1;
+		}
+		$this->schema_change_version = Self::$schema_changed[$schema_key];
 	}
 
 	public function from_file($stmt, $filename){
@@ -29,6 +39,15 @@ class Permissiondiff {
 		} else {
 			$this->file_stmt = $stmt;
 		}
+
+		$schema_key = $this->schema_key();
+		if(!isset(Self::$schema_changed[$schema_key])) Self::$schema_changed[$schema_key] = 0;
+
+		if($this->file_stmt['table'] == '*'){
+			Self::$file_schema_permissions[$schema_key] = $this->file_stmt;
+			Self::$schema_changed[$schema_key] += 1;
+		}
+		$this->schema_change_version = Self::$schema_changed[$schema_key];
 		$this->diff_calculated = false;
 		$this->filenames[] = $filename;
 	}
@@ -47,17 +66,57 @@ class Permissiondiff {
 		return $this->file_stmts;
 	}
 
+	private function schema_key(){
+		if(!isset($this->schema_key)){
+			if(isset($this->file_stmt)){
+				$stmt = $this->file_stmt;
+			} elseif(isset($this->db_stmt)){
+				$stmt = $this->db_stmt;
+			} else {
+				return;
+			}
+			$this->schema_key = "schema:$stmt[user]:$stmt[database]";
+		}
+		return $this->schema_key;
+	}
+
+	private function has_schema_changed(){
+		$schema_key = $this->schema_key();
+		if(!isset($schema_key)){
+			return false;
+		}
+		return Self::$schema_changed[$schema_key] > $this->schema_change_version;
+	}
+
+	private function update_schema_changes(){
+		if($this->has_schema_changed()){
+			if(isset($this->db_stmt)){
+				$changed = $this->db_stmt->schema_statement(Self::$db_schema_permissions[$this->schema_key()]);
+				if($changed){
+					$this->diff_calculated = false;
+				}
+			}
+			if(isset($this->file_stmt)){
+				$changed = $this->file_stmt->schema_statement(Self::$file_schema_permissions[$this->schema_key()]);
+				if($changed){
+					$this->diff_calculated = false;
+				}
+			}
+		}
+	}
+
 	private function diff(){
+		$this->update_schema_changes();
 		if($this->diff_calculated) return;
 		$db = $this->db_stmt;
 		$file = $this->file_stmt;
 		if(!isset($file)){
 			$this->grant = null;
-			$this->revoke = $db;
+			$this->revoke = empty($db['priv_types']) ? null : $db;
 			$this->diff_calculated = true;
 			return;
 		} elseif(!isset($db)){
-			$this->grant = $file;
+			$this->grant = empty($file['priv_types']) ? null : $file;
 			$this->revoke = null;
 			$this->diff_calculated = true;
 			return;
@@ -71,6 +130,7 @@ class Permissiondiff {
 		if(!empty($remove)){
 			$this->revoke = ['priv_types'=>$remove] + $db->to_array();
 		}
+		$this->diff_calculated = true;
 	}
 
 	private function compare($a, $b){
