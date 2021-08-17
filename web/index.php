@@ -84,6 +84,11 @@ function load_and_run($config, $basedir){
 		Page::error(...$msgs);
 		abort();
 	}
+	if(!empty(Core::$warnings)){
+		foreach(Core::$warnings as $warning){
+			Page::error($warning);
+		}
+	}
 	if(isset($_POST['execute_part'])){
 		$execute = explode(':',$_POST['execute_part']);
 		if(count($execute) == 3) $execute_batch = $execute[0];

@@ -19,6 +19,8 @@ class Core {
 		return [null,'invalid_path'];
 	}
 
+	public static $warnings = [];
+
 	public static function load_and_run($json, $configdir = null){
 		Config::load($json);
 		DB::login();
@@ -33,6 +35,7 @@ class Core {
 		foreach($batches as $batch){
 			Config::load($batch);
 			list($sqlfiles, $warnings) = \Helper\sqlfiles($configdir);
+			self::$warnings = array_merge(self::$warnings,$warnings);
 			$objs[] = DBTool::load($sqlfiles, Config::get_instance());
 		}
 
