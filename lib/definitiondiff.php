@@ -164,7 +164,7 @@ class Definitiondiff {
 		$db_options = array_filter($db_table['table_options'], function($key) use ($ignore_db_only_options){
 			return !in_array($key, $ignore_db_only_options);
 		}, ARRAY_FILTER_USE_KEY);
-		$options = self::compare_elems($file_table['table_options'], $db_options, $file_key, $db_key);
+		$options = self::compare_elems($file_table['table_options'], $db_options, $file_key, $db_key, ['DefinitionDiff','option_is_equal']);
 
 		if(!empty($columns) || !empty($keys) || !empty($options)){
 			return ['columns'=>$columns,'keys'=>$keys,'options'=>$options];
@@ -177,7 +177,7 @@ class Definitiondiff {
 		foreach($names as $name){
 			$file_elem = isset($file_inputs[$name]) ? $file_inputs[$name] : null;
 			$db_elem = isset($db_inputs[$name]) ? $db_inputs[$name] : null;
-			$equality = isset($is_equal) ? $is_equal($file_elem, $db_elem) : $file_elem == $db_elem;
+			$equality = isset($is_equal) ? $is_equal($file_elem, $db_elem, $name) : $file_elem == $db_elem;
 			if(!$equality){
 				$output[$name] = array_filter([$db_key=>$db_elem, $file_key=>$file_elem]);
 			}
@@ -225,6 +225,18 @@ class Definitiondiff {
 		return true;
 	}
 
+	private static function option_is_equal($opt_a, $opt_b, $name){
+		if(!isset($opt_a) || !isset($opt_b)) return false;
+		if($opt_a === $opt_b) return true;
+		if($name === 'CHARSET'){
+			return self::is_synonym($opt_a, $opt_b, self::$charset_synonyms);
+		}
+		return false;
+	}
+
+	private static $charset_synonyms = [
+		['utf8','utf8mb3']
+	];
 	private static $default_synonyms = [
 		['current_timestamp','current_timestamp()','now()']
 	];
