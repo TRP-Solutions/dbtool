@@ -216,6 +216,8 @@ class Definitiondiff {
 				if(
 					$key == 'default' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
 					|| $key == 'type' && self::compare_type($col_a[$key],$col_b[$key])
+					|| $key == 'char_set' && self::is_synonym($col_a[$key],$col_b[$key],self::$charset_synonyms)
+					|| $key == 'collation' && self::compare_collation($col_a[$key],$col_b[$key])
 				){
 					continue;
 				}
@@ -273,6 +275,11 @@ class Definitiondiff {
 		if($a_replace == $b) return true;
 		$b_replace = preg_replace($pattern, '', $b);
 		return $b_replace == $a;
+	}
+	private static function compare_collation($a, $b){
+		$a = explode('_',$a,2);
+		$b = explode('_',$b,2);
+		return $a[1] == $b[1] && self::is_synonym($a[0], $b[0], self::$charset_synonyms);
 	}
 
 	private static function generate_alter_queries($table_name, $table_diff){

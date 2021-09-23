@@ -29,7 +29,7 @@ function statement($stmt){
 	}
 }
 
-function encode_datatype($datatype){
+function encode_datatype($datatype, $include_attributes = true){
 	$str = $datatype['name'];
 	if(isset($datatype['length'])) $length = $datatype['length'];
 	elseif(isset($datatype['precision'])) $length = $datatype['precision'];
@@ -46,10 +46,12 @@ function encode_datatype($datatype){
 	if(isset($datatype['values'])){
 		$str .= " (".implode(', ',$datatype['values']).')';
 	}
-	if(isset($datatype['unsigned']) && $datatype['unsigned']) $str .= " UNSIGNED";
-	if(isset($datatype['zerofill']) && $datatype['zerofill']) $str .= " ZEROFILL";
-	if(isset($datatype['character set'])) $str .= " CHARACTER SET ${datatype['character set']}";
-	if(isset($datatype['collate'])) $str .= " COLLATE $datatype[collate]";
+	if($include_attributes){
+		if(isset($datatype['unsigned']) && $datatype['unsigned']) $str .= " UNSIGNED";
+		if(isset($datatype['zerofill']) && $datatype['zerofill']) $str .= " ZEROFILL";
+		if(isset($datatype['character set'])) $str .= " CHARACTER SET ${datatype['character set']}";
+		if(isset($datatype['collate'])) $str .= " COLLATE $datatype[collate]";
+	}
 	return $str;
 }
 

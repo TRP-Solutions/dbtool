@@ -139,7 +139,7 @@ class Format {
 		if(isset($old_col['datatype']['character set'])) $new_col['char_set'] = $old_col['datatype']['character set'];
 		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
 
-		$new_col['type'] = \Parser\encode_datatype($old_col['datatype']);
+		$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], false);
 
 		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
 		if(isset($old_col['comment'])){
