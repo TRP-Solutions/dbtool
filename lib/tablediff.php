@@ -70,6 +70,7 @@ class Tablediff {
 		self::$tables = [];
 		self::$database_error = null;
 		self::$skipped_statements = 0;
+		Definitiondiff::reset();
 	}
 
 	static public function get($name){

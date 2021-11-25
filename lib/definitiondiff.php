@@ -6,6 +6,10 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 class Definitiondiff {
 	static private $known_tables;
 
+	public static function reset(){
+		self::$known_tables = [];
+	}
+
 	private $dbname, $name, $file_stmt, $db_stmt, $filenames = [], $errors = [], $diff, $diff_sql, $diff_calculated = true, $parsed_database = false;
 
 	public function __construct($name){
