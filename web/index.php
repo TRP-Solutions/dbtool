@@ -3,6 +3,11 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+$uri = $_SERVER['REQUEST_URI'];
+if(substr($uri,-1)!='/') $uri = dirname($uri).'/';
+session_set_cookie_params(['path'=>$uri]);
+
 require_once "../lib/core.php";
 require_once "../lib/format.php";
 require_once "lib/heal-document/lib/HealHTML.php";
