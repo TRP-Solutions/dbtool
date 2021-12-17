@@ -119,6 +119,13 @@ class Description implements ArrayAccess, JsonSerializable {
 		} else {
 			$schemadiff = array_udiff_assoc($schema, $table, [$this,'compare']);
 			$subset = $this->file_is_subset($tablediff, $schemadiff);
+			foreach($subset[0] as $key => $priv){
+				if(isset($subset[1][$key.'*'])){
+					// If there's a table-level permission from the schema,
+					// don't set the same column-level permission in the shadowing permission set
+					unset($subset[1][$key.'*']);
+				}
+			}
 			$this->set_shadowing_priv_types($subset[1]);
 		}
 	}
