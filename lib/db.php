@@ -91,11 +91,9 @@ class DB {
 		if(!isset($host)) $host = 'localhost';
 		$username = Config::get('user');
 		$password = Config::get('password');
-		$database = Config::get('database');
-		if(!isset($database)) $database = '';
 		if(isset($username) && isset($password)){
 			$error_level = error_reporting(0);
-			$mysqli = new mysqli($host, $username, $password, $database);
+			$mysqli = new mysqli($host, $username, $password);
 			error_reporting($error_level);
 			
 			if(!$mysqli->connect_error){
