@@ -90,13 +90,14 @@ class Permissiondiff {
 
 	private function update_schema_changes(){
 		if($this->has_schema_changed()){
-			if(isset($this->db_stmt)){
+			$schema_key = $this->schema_key();
+			if(isset($this->db_stmt) && isset(Self::$db_schema_permissions[$schema_key])){
 				$changed = $this->db_stmt->schema_statement(Self::$db_schema_permissions[$this->schema_key()]);
 				if($changed){
 					$this->diff_calculated = false;
 				}
 			}
-			if(isset($this->file_stmt)){
+			if(isset($this->file_stmt) && isset(Self::$file_schema_permissions[$schema_key])){
 				$changed = $this->file_stmt->schema_statement(Self::$file_schema_permissions[$this->schema_key()]);
 				if($changed){
 					$this->diff_calculated = false;
