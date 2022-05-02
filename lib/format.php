@@ -133,13 +133,17 @@ class Format {
 		];
 		if(isset($old_col['default'])) $new_col['default'] = $old_col['default'];
 		elseif($new_col['nullable']=='YES') $new_col['default'] = 'NULL';
+		if(isset($old_col['datatype']['length'])) $new_col['length'] = $old_col['datatype']['length'];
 		if(isset($old_col['datatype']['char_max_length'])) $new_col['char_max_length'] = $old_col['datatype']['char_max_length'];
 		if(isset($old_col['datatype']['precision'])) $new_col['num_precision'] = $old_col['datatype']['precision'];
 		if(isset($old_col['datatype']['decimals'])) $new_col['num_scale'] = $old_col['datatype']['decimals'];
+		if(isset($old_col['datatype']['fsp'])) $new_col['fractional_seconds_precision'] = $old_col['datatype']['fsp'];
 		if(isset($old_col['datatype']['character set'])) $new_col['char_set'] = $old_col['datatype']['character set'];
 		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
+		if(isset($old_col['datatype']['unsigned'])) $new_col['unsigned'] = $old_col['datatype']['unsigned'] ? 'YES' : 'NO';
+		if(isset($old_col['datatype']['zerofill'])) $new_col['zerofill'] = $old_col['datatype']['zerofill'] ? 'YES' : 'NO';
 
-		$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], false);
+		$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], true);
 
 		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
 		if(isset($old_col['comment'])){

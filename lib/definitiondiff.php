@@ -213,13 +213,21 @@ class Definitiondiff {
 		if(!isset($col_a) || !isset($col_b)) return false;
 		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
 		foreach($keys as $key){
+			if($key == 'type'){
+				// 'type' field is kept around to generate the SQL statements
+				continue;
+			}
 			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
+				if($key == 'length'){
+					// if one side has length and other size doesn't, assume it's default length
+					continue;
+				}
 				return false;
 			}
 			if($col_a[$key] != $col_b[$key]) {
 				if(
 					$key == 'default' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
-					|| $key == 'type' && self::compare_type($col_a[$key],$col_b[$key])
+					|| $key == 'data_type' && self::compare_type($col_a[$key],$col_b[$key])
 					|| $key == 'char_set' && self::is_synonym($col_a[$key],$col_b[$key],self::$charset_synonyms)
 					|| $key == 'collation' && self::compare_collation($col_a[$key],$col_b[$key])
 				){

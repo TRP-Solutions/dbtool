@@ -40,8 +40,8 @@ function encode_datatype($datatype, $include_attributes = true){
 		if(isset($datatype['decimals'])) $str .= ', '.$datatype['decimals'];
 		$str .= ')';
 	}
-	if(isset($datatype['fsc'])){
-		$str .= " ($datatype[fsc])";
+	if(isset($datatype['fsp'])){
+		$str .= " ($datatype[fsp])";
 	}
 	if(isset($datatype['values'])){
 		$str .= " (".implode(', ',$datatype['values']).')';
@@ -179,7 +179,7 @@ function statement_table($stmt){
 			}
 			
 		} elseif(in_array($type, $type_timeywimey) && match_token($tokens,'(')){
-			$coldesc['datatype']['fsc'] = $pop();
+			$coldesc['datatype']['fsp'] = $pop();
 			$close_paren = true;
 		} elseif(in_array($type, $type_enumy)){
 			if($e = $expect('(')) return $e;
@@ -199,6 +199,7 @@ function statement_table($stmt){
 		if(in_array($type, $type_inty)){
 			if(match_token($tokens,'UNSIGNED')) $coldesc['datatype']['unsigned'] = true;
 			elseif(match_token($tokens,'SIGNED')) $coldesc['datatype']['unsigned'] = false;
+			else $coldesc['datatype']['unsigned'] = false;
 			if(match_token($tokens,'ZEROFILL')) $coldesc['datatype']['zerofill'] = true;
 		} elseif(in_array($type, $type_stringy)){
 			if(match_token($tokens,'CHARACTER')){
