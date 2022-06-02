@@ -218,7 +218,8 @@ class Definitiondiff {
 				continue;
 			}
 			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
-				if($key == 'length'){
+				if($key == 'length'
+					||$key == 'collation' && self::is_collation_default($col_a,$col_b)){
 					// if one side has length and other size doesn't, assume it's default length
 					continue;
 				}
@@ -291,7 +292,30 @@ class Definitiondiff {
 	private static function compare_collation($a, $b){
 		$a = explode('_',$a,2);
 		$b = explode('_',$b,2);
+		if(!isset($a[1])) $a[1] = null;
+		if(!isset($b[1])) $b[1] = null;
 		return $a[1] == $b[1] && self::is_synonym($a[0], $b[0], self::$charset_synonyms);
+	}
+	private static function is_collation_default($first, $second){
+		if(empty($first['collation'])
+			&& !empty($second['collation'])
+			&& !empty($first['char_set'])
+		){
+			$charset = $first['char_set'];
+			$collation = $second['collation'];
+		}
+		elseif(empty($second['collation'])
+			&& !empty($first['collation'])
+			&& !empty($second['char_set'])
+		){
+			$charset = $second['char_set'];
+			$collation = $first['collation'];
+		} else {
+			return false;
+		}
+
+		$query = \DB::sql("SHOW CHARACTER SET WHERE Charset = '$charset'");
+		return $query->num_rows == 1 && $query->fetch_assoc()['Default collation'] == $collation;
 	}
 
 	private static function generate_alter_queries($table_name, $table_diff){
