@@ -118,7 +118,7 @@ class Definitiondiff {
 			if(isset($db_stmt) && isset($this->file_stmt)){
 				$this->diff = self::compare_tables($this->file_stmt, $db_stmt);
 				if(isset($this->diff)){
-					$this->diff['sql'] = self::generate_alter_queries($this->name, $this->diff);
+					$this->diff['sql'] = self::generate_alter_queries($this->dbname, $this->name, $this->diff);
 				}
 			}
 			$this->diff_calculated = true;
@@ -318,7 +318,7 @@ class Definitiondiff {
 		return $query->num_rows == 1 && $query->fetch_assoc()['Default collation'] == $collation;
 	}
 
-	private static function generate_alter_queries($table_name, $table_diff){
+	private static function generate_alter_queries($database_name, $table_name, $table_diff){
 		$drop_keys = [];
 		$add_columns = [];
 		$modify_columns = [];
@@ -329,7 +329,7 @@ class Definitiondiff {
 		foreach($table_diff['columns'] as $colname => $diff){
 			if(isset($diff['t1']) && isset($diff['t2'])){
 				// modify
-				$query = "ALTER TABLE `$table_name` MODIFY COLUMN ".Format::column_A_to_definition($diff['t2']);
+				$query = "ALTER TABLE `$database_name`.`$table_name` MODIFY COLUMN ".Format::column_A_to_definition($diff['t2']);
 				if(isset($diff['t1']['after'])
 					&& $diff['t1']['after'] != $diff['t2']['after']){
 					$query .= self::build_column_query_after($diff['t2']);
@@ -337,23 +337,23 @@ class Definitiondiff {
 				$modify_columns[] = $query.';';
 			} elseif(isset($diff['t2'])){
 				// add
-				$add_columns[] = "ALTER TABLE `$table_name` ADD COLUMN ".Format::column_A_to_definition($diff['t2']).self::build_column_query_after($diff['t2']).';';
+				$add_columns[] = "ALTER TABLE `$database_name`.`$table_name` ADD COLUMN ".Format::column_A_to_definition($diff['t2']).self::build_column_query_after($diff['t2']).';';
 			} elseif(isset($diff['t1'])){
 				// drop
-				$drop_columns[] = "ALTER TABLE `$table_name` DROP COLUMN `$colname`;";
+				$drop_columns[] = "ALTER TABLE `$database_name`.`$table_name` DROP COLUMN `$colname`;";
 			}
 		}
 
 		foreach($table_diff['keys'] as $keyname => $diff){
 			if(isset($diff['t1'])){
 				if($diff['t1']['index_type'] == 'primary'){
-					$drop_keys[] = "ALTER TABLE `$table_name` DROP PRIMARY KEY;";
+					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP PRIMARY KEY;";
 				} else {
-					$drop_keys[] = "ALTER TABLE `$table_name` DROP KEY $keyname;";
+					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP KEY $keyname;";
 				}
 			}
 			if(isset($diff['t2'])){
-				$query = "ALTER TABLE `$table_name` ADD ";
+				$query = "ALTER TABLE `$database_name`.`$table_name` ADD ";
 				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
 				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';
 				$query .= "KEY ";
@@ -368,9 +368,9 @@ class Definitiondiff {
 		];
 		foreach($table_diff['options'] as $optname => $diff){
 			if(isset($diff['t2'])){
-				$query = "ALTER TABLE `$table_name` $optname = $diff[t2]";
+				$query = "ALTER TABLE `$database_name`.`$table_name` $optname = $diff[t2]";
 			} elseif(isset($option_defaults[$optname])) {
-				$query = "ALTER TABLE `$table_name` $optname = ".$option_defaults[$optname];
+				$query = "ALTER TABLE `$database_name`.`$table_name` $optname = ".$option_defaults[$optname];
 			} else {
 				$query = null;
 			}
