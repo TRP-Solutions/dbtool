@@ -53,25 +53,32 @@ class DBTool {
 
 	public function execute(){
 		$this->pre_execute();
-		foreach($this->result['tables'] as $table){
-			foreach($table['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
+		foreach($this->result as $entry){
+			if($entry['type'] == 'intersection'
+				|| $entry['type'] == 'file_only'
+				|| $entry['type'] == 'database_only'
+				|| $entry['type'] == 'drop'
+			){
+				foreach($entry['sql'] as $sql){
+					DB::sql($sql);
+					$this->executed_sql[] = $sql;
+				}
 			}
-		}
-		foreach($this->result['drop_queries'] as $sql){
-			DB::sql($sql);
-			$this->executed_sql[] = $sql;
 		}
 		return $this->executed_sql;
 	}
 
 	public function execute_table($tablename){
 		$this->pre_execute();
-		if(isset($this->result['tables'][$tablename])){
-			foreach($this->result['tables'][$tablename]['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
+		foreach($this->result as $entry){
+			if(
+				($entry['type'] == 'intersection' || $entry['type'] == 'file_only' || $entry['type'] == 'database_only')
+				&& $entry['name'] == $tablename
+			){
+				foreach($entry['sql'] as $sql){
+					DB::sql($sql);
+					$this->executed_sql[] = $sql;
+				}
 			}
 		}
 		return $this->executed_sql;
@@ -79,18 +86,23 @@ class DBTool {
 
 	public function execute_drop(){
 		$this->pre_execute();
-		foreach($this->result['drop_queries'] as $sql){
-			DB::sql($sql);
-			$this->executed_sql[] = $sql;
+		foreach($this->result as $entry){
+			if($entry['type'] != 'drop'){
+				continue;
+			}
+			DB::sql($entry['sql']);
+			$this->executed_sql[] = $entry['sql'];
 		}
 		return $this->executed_sql;
 	}
 
 	private function pre_execute(){
 		Config::set_instance($this->config);
-		if(isset($this->result['create_database'])){
-			DB::sql($this->result['create_database']);
-			$this->executed_sql[] = $this->result['create_database'];
+		foreach($this->result as $entry){
+			if($entry['type'] == 'create_database'){
+				DB::sql($entry['sql']);
+				$this->executed_sql[] = $entry['sql'];
+			}
 		}
 		DB::use_configured();
 	}
