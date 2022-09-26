@@ -33,44 +33,51 @@ class Format {
 	public static function diff_to_display($data){
 		$error_cards = [];
 		$cards = [];
-		if(!empty($data['errors'])){
-			$error_cards[] = [
-				'errors'=>array_map(function($o){return $o['error'];}, $data['errors']),
-			];
-		}
-		if(isset($data['create_database'])){
-			$intersection_cards[] = [
-				'title'=>'Missing database',
-				'sql'=>[$data['create_database']],
-				'id'=>'sql:create_database'
-			];
-		}
-		foreach($data['tables'] as $tablekey => $table){
-			$display = [];
-			if(!empty($table['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($table['columns'])];
-			if(!empty($table['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($table['keys'])];
-			if(!empty($table['options'])) $display[] = ['title'=>'Options','table'=>self::table_options_to_display($table['options'])];
-			if(!empty($table['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($table['permissions'])];
-			$card = [
-				'title'=>$table['name'],
-				'subtitle'=>$table['type']=='database_only' ? 'Database Only' : 'Files: "'.implode('"; "',$table['sources']).'"',
-				'sql'=>$table['sql'],
-				'id'=>'table:'.$table['name']
-			];
-			if(!empty($display)){
-				$card['display'] = $display;
+		$card_tabledrop = null;
+		foreach($data as $entry){
+			if($entry['type'] == 'error'){
+				$error_cards[] = [
+					'errors'=>array_map(function($o){return $o['error'];}, $entry['error']),
+				];
+			} elseif($entry['type'] == 'create_database'){
+				$cards[] = [
+					'title'=>'Missing database',
+					'sql'=>[$entry['sql']],
+					'id'=>'sql:create_database'
+				];
+			} elseif($entry['type'] == 'database_only' || $entry['type'] == 'intersection'){
+				$display = [];
+				if(!empty($entry['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($entry['columns'])];
+				if(!empty($entry['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($entry['keys'])];
+				if(!empty($entry['options'])) $display[] = ['title'=>'Options','table'=>self::table_options_to_display($entry['options'])];
+				if(!empty($entry['permissions'])) $display[] = ['title'=>'Permissions','table'=>self::table_permissions_to_display($entry['permissions'])];
+				$card = [
+					'title'=>$entry['name'],
+					'subtitle'=>$entry['type']=='database_only' ? 'Database Only' : 'Files: "'.implode('"; "',$entry['sources']).'"',
+					'sql'=>$entry['sql'],
+					'id'=>'table:'.$entry['name']
+				];
+				if(!empty($display)){
+					$card['display'] = $display;
+				}
+				if($entry['type']!='intersection' || !empty($display)){
+					$cards[] = $card;
+				}
+			} elseif($entry['type'] == 'drop'){
+				if(!isset($card_tabledrop)){
+					$card_tabledrop = [
+						'title'=>'Tables only in database',
+						'display'=>[['list'=>[]]],
+						'sql'=>[],
+						'id'=>'sql:drop'
+					];
+				}
+				$card_tabledrop['display'][0]['list'][] = $entry['name'];
+				$card_tabledrop['sql'][] = $entry['sql'];
 			}
-			if($table['type']!='intersection' || !empty($display)){
-				$cards[] = $card;
-			}
 		}
-		if(!empty($data['db_only_tables'])){
-			$cards[] = [
-				'title'=>'Tables only in database',
-				'display'=>[['list'=>$data['db_only_tables']]],
-				'sql'=>$data['drop_queries'],
-				'id'=>'sql:drop'
-			];
+		if(isset($card_tabledrop)){
+			$cards[] = $card_tabledrop;
 		}
 		return array_merge($error_cards,$cards);
 	}

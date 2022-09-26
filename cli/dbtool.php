@@ -155,7 +155,6 @@ function run_config($config, $configdir){
 			}
 		}
 		if(!empty($obj->error)){
-			
 			echo "Error in $batch_name: $obj->error\n";
 			$error_printed = true;
 			continue;
@@ -205,15 +204,21 @@ function show_result($result){
 
 	$intersection_tables = [];
 	$file_tables = [];
+	$db_only_tables = [];
+	$drop_queries = [];
 
-	foreach($result['tables'] as $table){
+	foreach($result as $table){
 		if(empty($table['sql'])) continue;
 		if($table['type'] == 'intersection') $intersection_tables[] = $table;
 		elseif($table['type'] == 'file_only') $file_tables[] = $table;
 		elseif($table['type'] == 'database_only') $intersection_tables[] = $table;
+		elseif($table['type'] == 'drop'){
+			$db_only_tables[] = $table['name'];
+			$drop_queries[] = $table['sql'];
+		}
 	}
 
-	$no_db = show_result_part($result['db_only_tables'], $result['drop_queries'], 'in database', 'drop queries will remove them');
+	$no_db = show_result_part($db_only_tables, $drop_queries, 'in database', 'drop queries will remove them');
 	$no_file = show_result_tablelist($file_tables, 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
 	$no_intersect = show_result_tablelist($intersection_tables, 'with differences', 'queries will align them');
 
@@ -247,32 +252,21 @@ function show_result_part($tablenames, $sql, $descriptor, $sql_text){
 }
 
 function show_error($result){
-	if(!empty($result['errors'])){
-		foreach($result['errors'] as $e){
+	$has_errors = false;
+	foreach($result as $entry){
+		if($entry['type'] != 'error'){
+			continue;
+			$has_errors = true;
 			echo "Error ($e[errno]): ";
-			if(isset($e['error'])) echo $e['error'];
+			if(isset($entry['error'])) echo $entry['error'];
 			else {
 				echo "Unknown Error\n";
 				debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 			}
 			echo "\n";
-			if(isset($e['sqlerror']))echo $e['sqlerror']."\n";
+			if(isset($entry['sqlerror']))echo $entry['sqlerror']."\n";
 		}
-		return true;
 	}
-	if(isset($result['errno']) && $result['errno'] !== 0){
-		echo "Error ($result[errno]): ";
-		if(isset($result['error'])) echo $result['error'];
-		else {
-			echo 'Unknown Error';
-			debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-		}
-		echo "\n";
-		if(isset($result['sqlerror'])) echo $result['sqlerror'];
-		echo "\n";
-		return true;
-	}
-	return false;
 }
 
 function ask_continue($msg = null, $default_yes = true){

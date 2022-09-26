@@ -81,16 +81,10 @@ class Tablediff {
 	}
 
 	static public function write_result(){
-		$result = [
-			'errors' =>[],
-			'tables'=>[],
-			'db_only_tables'=>[],
-			'drop_queries'=>[],
-			'create_database'=>null
-		];
+		$result = [];
 
 		if(self::$database_error){
-			$result['errors'][] = ['errno'=>4,'error'=>"Database missing. ".self::$skipped_statements." statement(s) skipped."];
+			$result[] = ['type'=>'error','error'=>['errno'=>4,'error'=>"Database missing. ".self::$skipped_statements." statement(s) skipped."]];
 		}
 
 		$mode = self::read_mode();
@@ -101,13 +95,13 @@ class Tablediff {
 		$revoke = (bool) ($mode & self::REVOKE);
 		$create_database_sql = self::load_db_tables();
 		if(isset($create_database_sql)){
-			$result['create_database'] = $create_database_sql;
+			$result[] = ['type'=>'create_database','sql'=>$create_database_sql];
 		}
 		foreach(self::$tables as $name => $table){
 			$table->diff();
 			if(!empty($table->errors)){
 				foreach($table->errors as $error){
-					$result['errors'][] = $error;
+					$result[] = ['type'=>'error','error'=>$error];
 				}
 			}
 			$table_obj = null;
@@ -119,8 +113,7 @@ class Tablediff {
 					'sql'=>[$table->create_sql]
 				];
 			} elseif($drop && !empty($table->drop)){
-				$result['db_only_tables'][] = $table->drop;
-				$result['drop_queries'][$table->drop] = $table->drop_sql;
+				$result[] = ['type'=>'drop','name'=>$table->drop,'sql'=>$table->drop_sql];
 			}
 			if($revoke && !empty($table->revoke)){
 				if(!isset($table_obj)){
@@ -141,7 +134,7 @@ class Tablediff {
 				}
 			}
 			if(isset($table_obj)){
-				$result['tables'][$name] = $table_obj;
+				$result[] = $table_obj;
 			}
 		}
 		return $result;

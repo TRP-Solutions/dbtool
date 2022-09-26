@@ -83,7 +83,12 @@ function share_known_tables($objs){
 		// assumes ->get_result loads the relevant config instance
 		$config = \Config::get_instance();
 		$db = $config->read('database');
-		$tables = array_keys($result['tables']);
+		$tables = [];
+		foreach($result as $entry){
+			if($entry['type'] == 'intersection' || $entry['type'] == 'database_only'){
+				$tables[] = $entry['name'];
+			}
+		}
 		if(!isset($known_tables[$db])){
 			$known_tables[$db] = $tables;
 		} else {
@@ -99,13 +104,11 @@ function share_known_tables($objs){
 		// assumes ->get_result loads the relevant config instance
 		$config = \Config::get_instance();
 		$db = $config->read('database');
-		$result['db_only_tables'] = array_diff($result['db_only_tables'], $known_tables[$db]);
-		$drop = [];
-		foreach($result['db_only_tables'] as $key){
-			if(isset($result['drop_queries'][$key])){
-				$drop[$key] = $result['drop_queries'][$key];
+
+		foreach($result as &$entry){
+			if($entry['type'] == 'drop' && in_array($entry['name'], $known_tables[$db])){
+				$entry = null;
 			}
 		}
-		$result['drop_queries'] = $drop;
 	}
 }
