@@ -5,6 +5,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 require_once __DIR__."/permissiondiff.php";
 require_once __DIR__."/definitiondiff.php";
+require_once __DIR__."/userdiff.php";
 require_once __DIR__."/format.php";
 require_once __DIR__."/parser.php";
 require_once __DIR__.'/description.php';
@@ -14,8 +15,11 @@ class Tablediff {
 	const DROP = 0b100;
 	const GRANT = 0b1000;
 	const REVOKE = 0b10000;
+	const CREATE_USER = 0b100000;
+	const ALTER_USER = 0b1000000;
+	const DROP_USER = 0b10000000;
 
-	static private $tables = [], $database_error, $skipped_statements = 0;
+	static private $tables = [], $users = [], $database_error, $skipped_statements = 0;
 
 	private $name, $permissions = [], $definition = null,
 		$sources = [],
@@ -54,6 +58,8 @@ class Tablediff {
 					} else {
 						self::file_statement($obj, $sourcename);
 					}
+				} elseif($obj['type'] == 'user') {
+					self::file_statement($obj, $sourcename);
 				}
 			}
 		}
@@ -80,6 +86,13 @@ class Tablediff {
 		return self::$tables[$name];
 	}
 
+	static public function get_user($name){
+		if(!isset(self::$users[$name])){
+			self::$users[$name] = new Userdiff($name);
+		}
+		return self::$users[$name];
+	}
+
 	static public function write_result(){
 		$result = [];
 
@@ -93,6 +106,35 @@ class Tablediff {
 		$drop = (bool) ($mode & self::DROP);
 		$grant = (bool) ($mode & self::GRANT);
 		$revoke = (bool) ($mode & self::REVOKE);
+		$create_user = (bool) ($mode & self::CREATE_USER);
+		$alter_user = (bool) ($mode & self::ALTER_USER);
+		$drop_user = (bool) ($mode & self::DROP_USER);
+
+		if($create_user || $alter_user || $drop_user){
+			foreach(self::$users as $name => $user){
+				if($alter_user){
+					$ua_result = $user->get_alter();
+					if(isset($ua_result)){
+						$result[] = $ua_result;
+						continue;
+					}
+				}
+				if($create_user){
+					$uc_result = $user->get_create();
+					if(isset($uc_result)){
+						$result[] = $uc_result;
+						continue;
+					}
+				}
+				if($drop_user){
+					$ud_result = $user->get_drop();
+					if(isset($ud_result)){
+						$result[] = $ud_result;
+						continue;
+					}
+				}
+			}
+		}
 		$create_database_sql = self::load_db_tables();
 		if(isset($create_database_sql)){
 			$result[] = ['type'=>'create_database','sql'=>$create_database_sql];
@@ -149,7 +191,8 @@ class Tablediff {
 		$mode = 0;
 		$config_modes = Config::get('statement');
 		if(empty($config_modes)){
-			$mode = self::CREATE | self::ALTER | self::DROP | self::GRANT | self::REVOKE;
+			$mode = self::CREATE | self::ALTER | self::DROP | self::GRANT | self::REVOKE
+				| self::CREATE_USER | self::ALTER_USER | self::DROP_USER;
 		} else {
 			foreach($config_modes as $config_mode){
 				$config_mode = strtolower($config_mode);
@@ -159,6 +202,9 @@ class Tablediff {
 					case 'drop': $mode |= self::DROP; break;
 					case 'grant': $mode |= self::GRANT; break;
 					case 'revoke': $mode |= self::REVOKE; break;
+					case 'create_user': $mode |= self::CREATE_USER; break;
+					case 'alter_user': $mode |= self::ALTER_USER; break;
+					case 'drop_user': $mode |= self::DROP_USER; break;
 				}
 			}
 		}
@@ -251,6 +297,10 @@ class Tablediff {
 	}
 
 	static public function file_statement($stmt, $sourcename){
+		if($stmt['type'] == 'user'){
+			self::get_user($stmt['user'])->from_file($stmt, $sourcename);
+			return;
+		}
 		$name = self::get_table_name($stmt);
 		$diff = self::get($name);
 		if($stmt['type'] == 'table'){
@@ -269,6 +319,10 @@ class Tablediff {
 	}
 
 	static public function database_statement($stmt){
+		if($stmt['type'] == 'user'){
+			self::get_user($stmt['user'])->from_database($stmt, $sourcename);
+			return;
+		}
 		$name = self::get_table_name($stmt);
 		$diff = self::get($name);
 		if($stmt['type'] == 'table'){

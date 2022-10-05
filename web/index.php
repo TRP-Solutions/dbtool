@@ -227,6 +227,15 @@ function display_result($obj){
 		} elseif($execute[1]=='sql' && $execute[2]=='create_database'){
 			$executed_sql = $obj->execute_create_database();
 			$is_executed = true;
+		} elseif($execute[1]=='drop_user'){
+			$executed_sql = $obj->execute_drop_user($execute[2]);
+			$is_executed = true;
+		} elseif($execute[1]=='create_user'){
+			$executed_sql = $obj->execute_create_user($execute[2]);
+			$is_executed = true;
+		} elseif($execute[1]=='alter_user'){
+			$executed_sql = $obj->execute_alter_user($execute[2]);
+			$is_executed = true;
 		}
 	} elseif(isset($_POST['execute'])){
 		$executed_sql = $obj->execute();

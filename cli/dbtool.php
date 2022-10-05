@@ -206,6 +206,9 @@ function show_result($result){
 	$file_tables = [];
 	$db_only_tables = [];
 	$drop_queries = [];
+	$create_users = [];
+	$alter_users = [];
+	$drop_users = [];
 
 	foreach($result as $table){
 		if(empty($table['sql'])) continue;
@@ -215,14 +218,23 @@ function show_result($result){
 		elseif($table['type'] == 'drop'){
 			$db_only_tables[] = $table['name'];
 			$drop_queries[] = $table['sql'];
+		} elseif($table['type'] == 'create_user'){
+			$create_users[] = $table;
+		} elseif($table['type'] == 'alter_user'){
+			$alter_users[] = $table;
+		} elseif($table['type'] == 'drop_user'){
+			$drop_users[] = $table;
 		}
 	}
 
-	$no_db = show_result_part($db_only_tables, $drop_queries, 'in database', 'drop queries will remove them');
-	$no_file = show_result_tablelist($file_tables, 'in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
-	$no_intersect = show_result_tablelist($intersection_tables, 'with differences', 'queries will align them');
+	$no_user_drop = show_result_tablelist($drop_users, 'user(s) in database','drop queries will remove them');
+	$no_user_create = show_result_tablelist($create_users, 'user(s) in file(s) only','create queries will add them');
+	$no_user_alter = show_result_tablelist($alter_users, 'user(s) with differences','queries will align them');
+	$no_db = show_result_part($db_only_tables, $drop_queries, 'table(s) in database', 'drop queries will remove them');
+	$no_file = show_result_tablelist($file_tables, 'table(s) in file(s) only', 'create queries will add them', ['Format','prettify_create_table']);
+	$no_intersect = show_result_tablelist($intersection_tables, 'table(s) with differences', 'queries will align them');
 
-	if($no_db && $no_file && $no_intersect){
+	if($no_user_create && $no_user_alter && $no_user_drop && $no_db && $no_file && $no_intersect){
 		echo "No differences found.\n\n";
 		return false;
 	}
@@ -243,7 +255,7 @@ function show_result_part($tablenames, $sql, $descriptor, $sql_text){
 	if(empty($tablenames)) return true;
 
 	$count = count($tablenames);
-	echo "Found $count table(s) $descriptor:\n\t";
+	echo "Found $count $descriptor:\n\t";
 	echo implode(', ',$tablenames)."\n\n";
 	if(VERBOSE){
 		echo "The following $sql_text:\n\t";

@@ -10,7 +10,13 @@ require_once __DIR__.'/description.php';
 function statement($stmt){
 	$stmttype = '';
 	$stmt = trim($stmt);
-	$types = ['CREATE TABLE' => 'table', 'INSERT' => 'insert', 'GRANT' => 'grant', 'REVOKE' => 'grant'];
+	$types = [
+		'CREATE TABLE' => 'table',
+		'INSERT' => 'insert',
+		'GRANT' => 'grant',
+		'REVOKE' => 'grant',
+		'CREATE USER' => 'user'
+	];
 	foreach($types as $prefix => $type){
 		if(strpos($stmt, $prefix) === 0){
 			$stmttype = $type;
@@ -24,6 +30,8 @@ function statement($stmt){
 			return statement_insert($stmt);
 		case 'grant':
 			return statement_grant($stmt);
+		case 'user':
+			return statement_user($stmt);
 		default:
 			return ['type' => 'unknown', 'statement' => $stmt];
 	}
@@ -62,12 +70,12 @@ function encode_index_column($col){
 	return $str;
 }
 
-// private; shouldn't be use outside this namespace
+// private; shouldn't be used outside this namespace
 function statement_insert($stmt){
 	return ['type' => 'insert', 'statement' => $stmt, 'key' => 'insert_'.rand()];
 }
 
-// private; shouldn't be use outside this namespace
+// private; shouldn't be used outside this namespace
 function statement_table($stmt){
 	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, null, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 
@@ -117,7 +125,7 @@ function statement_table($stmt){
 				$value = substr($token,1,-1);
 				return false;
 			}
-		} elseif(preg_match('/[0-9a-zA-Z$_]/', $token)) {
+		} elseif(preg_match('/^[0-9a-zA-Z$_\']+$/', $token)) {
 			$value = $token;
 			return false;
 		}
@@ -398,7 +406,7 @@ function statement_table($stmt){
 	return $desc;
 }
 
-// private; shouldn't be use outside this namespace
+// private; shouldn't be used outside this namespace
 function statement_grant($stmt){
 	$priv_type_tokens = ['ALL', 'ALTER', 'ALTER', 'CREATE', 'DELETE', 'DROP', 'EVENT', 'EXECUTE', 'FILE', 'GRANT', 'INDEX', 'INSERT', 'LOCK', 'PROCESS', 'PROXY', 'REFERENCES', 'RELOAD', 'REPLICATION', 'SELECT', 'SHOW', 'SHUTDOWN', 'SUPER', 'TRIGGER', 'UPDATE', 'USAGE'];
 	$priv_type_sec_tokens = ['ALL' => ['PRIVILEGES'], 'ALTER' => ['ROUTINE'], 'CREATE' => ['ROUTINE', 'TABLESPACE', 'TEMPORARY', 'USER', 'VIEW'], 'GRANT' => ['OPTION'], 'LOCK' => ['TABLES'], 'REPLICATION' => ['CLIENT', 'SLAVE'], 'SHOW' => ['DATABASES', 'VIEW']];
@@ -477,7 +485,164 @@ function statement_grant($stmt){
 	return $desc;
 }
 
-// private; shouldn't be use outside this namespace
+// private; shouldn't be used outside this namespace
+function statement_user($stmt){
+	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, null, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+
+	$fail = function($msg) use (&$desc, &$tokens){
+		$desc['error'] = $msg;
+		$desc['trace'] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		$desc['rest'] = '';
+		while(current($tokens) !== false){
+			$desc['rest'] .= current($tokens).' ';
+			next($tokens);
+		}
+		return $desc;
+	};
+	$expect = function($token) use (&$tokens, $fail){
+		if(match_token($tokens, $token)){
+			return false;
+		} else {
+			$prev = implode(' ',array_reverse([prev($tokens),prev($tokens),prev($tokens)])).' ';
+			next($tokens);next($tokens);
+			$current = next($tokens);
+			$next = [next($tokens),next($tokens),next($tokens)];
+			$context = $prev.$current.' '.implode(' ',$next);
+			$msg = "\n  expected ".(is_array($token) ? implode(', ', $token) : $token)." in";
+			$msg .= "\n  ".$context;
+			$msg .= "\n  ".str_repeat(' ', strlen($prev)).str_repeat('^', strlen($current));
+			return $fail($msg);
+		}
+	};
+	$phrase = function($phrase) use ($expect){
+		if(is_string($phrase)) $phrase = explode(' ',$phrase);
+		foreach($phrase as $token){
+			$e = $expect($token);
+			if($e) return $e;
+		}
+		return false;
+	};
+	$pop = function() use (&$tokens){
+		$token = current($tokens);
+		next($tokens);
+		return $token;
+	};
+	$identifier = function(&$value) use ($pop, $fail){
+		$token = $pop();
+		if($token[0] == '`'){
+			$len = strlen($token);
+			if($token[$len-1] == '`'){
+				$value = substr($token,1,-1);
+				return false;
+			}
+		} elseif(preg_match('/^[0-9a-zA-Z$_\']+$/', $token)) {
+			$value = $token;
+			return false;
+		}
+		return $fail('expected: valid identifier [ '.$token.' ]');
+	};
+	$label = function(&$value) use ($pop, $fail){
+		$token = $pop();
+		if(preg_match('/^\'[^\']+\'$/', $token)) {
+			$value = $token;
+			return false;
+		}
+		if(preg_match('/^[0-9a-zA-Z$_]+$/', $token)) {
+			$value = $token;
+			return false;
+		}
+		return $fail('expected: valid label [ '.$token.' ]');
+	};
+	$string = function(&$value) use ($pop, $fail){
+		$token = $pop();
+		if(preg_match('/^\'[^\']+\'$/', $token)) {
+			$value = substr($token,1,-1);
+			return false;
+		}
+		return $fail('expected: valid string [ '.$token.' ]');
+	};
+
+	$desc = ['type' => 'user', 'statement' => $stmt, 'key' => 'user_'.rand()];
+
+	if($e = $phrase('CREATE USER')) return $e;
+
+	if(match_token($tokens, 'IF')){
+		if($e = $phrase('NOT EXISTS')) return $e;
+		$desc['if not exists'] = true;
+	} else {
+		$desc['if not exists'] = false;
+	}
+
+	if($e = $identifier($desc['username'])) return $e;
+	if(match_token($tokens, '@')){
+		if($e = $identifier($desc['host'])) return $e;
+	} else {
+		$desc['host'] = "'%'";
+	}
+	$desc['user'] = $desc['username'].'@'.$desc['host'];
+
+	if(match_token($tokens, 'IDENTIFIED')){
+		if(match_token($tokens, 'WITH')){
+			if($e = $label($desc['auth_plugin'])) return $e;
+			if($token = match_token($tokens, ['AS','BY'])){
+				$desc['auth_hashed'] = $token == 'AS';
+				if($e = $string($desc['auth_string'])) return $e;
+			}
+		} elseif(match_token($tokens, 'BY')) {
+			$desc['auth_hashed'] = (bool) match_token($tokens,'PASSWORD');
+			if($e = $string($desc['auth_string'])) return $e;
+		}
+	}
+
+	$desc['tls'] = 'NONE';
+	if(match_token($tokens, 'REQUIRE')){
+		$tls_option = match_token($tokens, ['NONE','SSL','X509','CIPHER','ISSUER','SUBJECT']);
+		if($tls_option === false){
+			return $fail("Expected TLS option");
+		} elseif($tls_option != 'NONE') {
+			if(in_array($tls_option, ['CIPHER','ISSUER','SUBJECT'])){
+				$tls_option = [$tls_option,null];
+				if($e = $string($tls_option[1])) return $e;
+				$desc['tls'] = [$tls_option];
+				while((match_token($tokens,'AND') || true)
+					&& ($tls_option = match_token($tokens, ['CIPHER','ISSUER','SUBJECT']))
+				){
+					$tls_option = [$tls_option,null];
+					if($e = $string($tls_option[1])) return $e;
+					$desc['tls'][] = $tls_option;
+				}
+			} else {
+				$desc['tls'] = $tls_option;
+			}
+		}
+	}
+
+	if(match_token($tokens,'WITH')){
+		$resource_tokens = [
+			'MAX_QUERIES_PER_HOUR',
+			'MAX_UPDATES_PER_HOUR',
+			'MAX_CONNECTIONS_PER_HOUR',
+			'MAX_USER_CONNECTIONS',
+			'MAX_STATEMENT_TIME'
+		];
+		while($resource = match_token($tokens, $resource_tokens)){
+			$desc['resource'][] = [$resource,$pop()];
+		}
+	}
+
+	if(match_token($tokens,'ACCOUNT')){
+		$account = match_token($tokens, ['LOCK','UNLOCK']);
+		if($account){
+			$desc['account_lock'] = $account;
+		} else {
+			return $fail("Expected ACCOUNT LOCK or ACCOUNT UNLOCK");
+		}
+	}
+
+	return $desc;
+}
+
+// private; shouldn't be used outside this namespace
 function match_token(&$tokens, $match, $casesensitive = false){
 	$token = current($tokens);
 	

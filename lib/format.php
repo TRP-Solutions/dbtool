@@ -34,10 +34,17 @@ class Format {
 		$error_cards = [];
 		$cards = [];
 		$card_tabledrop = null;
+		$card_userdrop = null;
 		foreach($data as $entry){
 			if($entry['type'] == 'error'){
 				$error_cards[] = [
 					'errors'=>array_map(function($o){return $o['error'];}, $entry['error']),
+				];
+			} elseif($entry['type'] == 'create_user'){
+				$cards[] = [
+					'title'=>'Missing user: '.$entry['name'],
+					'sql'=>$entry['sql'],
+					'id'=>'create_user:'.$entry['name']
 				];
 			} elseif($entry['type'] == 'create_database'){
 				$cards[] = [
@@ -45,7 +52,7 @@ class Format {
 					'sql'=>[$entry['sql']],
 					'id'=>'sql:create_database'
 				];
-			} elseif($entry['type'] == 'database_only' || $entry['type'] == 'intersection'){
+			} elseif($entry['type'] == 'database_only' || $entry['type'] == 'intersection' || $entry['type'] == 'file_only'){
 				$display = [];
 				if(!empty($entry['columns'])) $display[] = ['title'=>'Columns','table'=>self::table_columns_to_display($entry['columns'])];
 				if(!empty($entry['keys'])) $display[] = ['title'=>'Keys','table'=>self::table_keys_to_display($entry['keys'])];
@@ -63,6 +70,13 @@ class Format {
 				if($entry['type']!='intersection' || !empty($display)){
 					$cards[] = $card;
 				}
+			} elseif($entry['type'] == 'alter_user'){
+				$cards[] = [
+					'title'=>$entry['name'],
+					'sql'=>$entry['sql'],
+					'id'=>'alter_user:'.$entry['name'],
+					'display'=>[['title'=>'Options','table'=>self::table_columns_to_display($entry['options'])]]
+				];
 			} elseif($entry['type'] == 'drop'){
 				if(!isset($card_tabledrop)){
 					$card_tabledrop = [
@@ -74,10 +88,24 @@ class Format {
 				}
 				$card_tabledrop['display'][0]['list'][] = $entry['name'];
 				$card_tabledrop['sql'][] = $entry['sql'];
+			} elseif($entry['type'] == 'drop_user'){
+				if(!isset($card_userdrop)){
+					$card_userdrop = [
+						'title'=>'Users only in database',
+						'display'=>[['list'=>[]]],
+						'sql'=>[],
+						'id'=>'drop_user:'.$entry['name']
+					];
+				}
+				$card_userdrop['display'][0]['list'][] = $entry['name'];
+				$card_userdrop['sql'][] = $entry['sql'];
 			}
 		}
 		if(isset($card_tabledrop)){
 			$cards[] = $card_tabledrop;
+		}
+		if(isset($card_userdrop)){
+			$cards[] = $card_userdrop;
 		}
 		return array_merge($error_cards,$cards);
 	}

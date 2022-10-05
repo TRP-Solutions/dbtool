@@ -58,6 +58,9 @@ class DBTool {
 				|| $entry['type'] == 'file_only'
 				|| $entry['type'] == 'database_only'
 				|| $entry['type'] == 'drop'
+				|| $entry['type'] == 'create_user'
+				|| $entry['type'] == 'alter_user'
+				|| $entry['type'] == 'drop_user'
 			){
 				foreach($entry['sql'] as $sql){
 					DB::sql($sql);
@@ -92,6 +95,45 @@ class DBTool {
 			}
 			DB::sql($entry['sql']);
 			$this->executed_sql[] = $entry['sql'];
+		}
+		return $this->executed_sql;
+	}
+
+	public function execute_drop_user($username){
+		$this->pre_execute();
+		foreach($this->result as $entry){
+			if($entry['type'] != 'drop_user' || $entry['name'] != $username){
+				continue;
+			}
+			DB::sql($entry['sql']);
+			$this->executed_sql[] = $entry['sql'];
+			break;
+		}
+		return $this->executed_sql;
+	}
+
+	public function execute_create_user($username){
+		$this->pre_execute();
+		foreach($this->result as $entry){
+			if($entry['type'] != 'create_user' || $entry['name'] != $username){
+				continue;
+			}
+			DB::sql($entry['sql']);
+			$this->executed_sql[] = $entry['sql'];
+			break;
+		}
+		return $this->executed_sql;
+	}
+
+	public function execute_alter_user($username){
+		$this->pre_execute();
+		foreach($this->result as $entry){
+			if($entry['type'] != 'alter_user' || $entry['name'] != $username){
+				continue;
+			}
+			DB::sql($entry['sql']);
+			$this->executed_sql[] = $entry['sql'];
+			break;
 		}
 		return $this->executed_sql;
 	}
