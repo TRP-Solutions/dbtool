@@ -161,8 +161,18 @@ class Definitiondiff {
 			}
 		}
 
-		$columns = self::compare_elems($file_columns, $db_columns, $file_key, $db_key, ['DefinitionDiff','column_is_equal']);
+		$columns = self::compare_elems($file_columns, $db_columns, $file_key, $db_key, ['DefinitionDiff','column_is_equal'],
+			$file_table['table_options'],
+			$db_table['table_options']
+		);
 		$keys = self::compare_elems($file_indexes, $db_indexes, $file_key, $db_key);
+
+		if(!empty($db_table['table_options']['COLLATE'])
+			&& empty($file_table['table_options']['COLLATE'])
+			&& !empty($file_table['table_options']['CHARSET'])
+		){
+			$file_table['table_options']['COLLATE'] = self::query_default_collation($file_table['table_options']['CHARSET']);
+		}
 
 		$ignore_db_only_options = ['AUTO_INCREMENT'];
 		$db_options = array_filter($db_table['table_options'], function($key) use ($ignore_db_only_options){
@@ -175,13 +185,13 @@ class Definitiondiff {
 		}
 	}
 
-	private static function compare_elems($file_inputs, $db_inputs, $file_key, $db_key, $is_equal = null){
+	private static function compare_elems($file_inputs, $db_inputs, $file_key, $db_key, $is_equal = null, $file_metadata = null, $db_metadata = null){
 		$output = [];
 		$names = array_unique(array_merge(array_keys($file_inputs),array_keys($db_inputs)));
 		foreach($names as $name){
 			$file_elem = isset($file_inputs[$name]) ? $file_inputs[$name] : null;
 			$db_elem = isset($db_inputs[$name]) ? $db_inputs[$name] : null;
-			$equality = isset($is_equal) ? $is_equal($file_elem, $db_elem, $name) : $file_elem == $db_elem;
+			$equality = isset($is_equal) ? $is_equal($file_elem, $db_elem, $name, $file_metadata, $db_metadata) : $file_elem == $db_elem;
 			if(!$equality){
 				$output[$name] = array_filter([$db_key=>$db_elem, $file_key=>$file_elem]);
 			}
@@ -209,7 +219,7 @@ class Definitiondiff {
 		}
 	}
 
-	private static function column_is_equal($col_a, $col_b){
+	private static function column_is_equal($col_a, $col_b, $name, $metadata_a, $metadata_b){
 		if(!isset($col_a) || !isset($col_b)) return false;
 		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
 		foreach($keys as $key){
@@ -219,7 +229,19 @@ class Definitiondiff {
 			}
 			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
 				if($key == 'length'
-					||$key == 'collation' && self::is_collation_default($col_a,$col_b)){
+					||$key == 'collation' && self::is_collation_default(
+						$col_a,
+						$col_b,
+						$metadata_a['COLLATE']??self::query_default_collation($metadata_a['CHARSET']),
+						$metadata_b['COLLATE']??self::query_default_collation($metadata_b['CHARSET'])
+					)
+					||$key == 'char_set' && self::is_charset_default(
+						$col_a,
+						$col_b,
+						$metadata_a['CHARSET']??null,
+						$metadata_b['CHARSET']??null
+					)
+				){
 					// if one side has length and other size doesn't, assume it's default length
 					continue;
 				}
@@ -296,7 +318,22 @@ class Definitiondiff {
 		if(!isset($b[1])) $b[1] = null;
 		return $a[1] == $b[1] && self::is_synonym($a[0], $b[0], self::$charset_synonyms);
 	}
-	private static function is_collation_default($first, $second){
+	private static function is_charset_default($first, $second, $first_default, $second_default){
+		if(isset($first['char_set']) && isset($first_default) && $first['char_set'] == $first_default){
+			return true;
+		}
+		if(isset($second['char_set']) && isset($second_default) && $second['char_set'] == $second_default){
+			return true;
+		}
+		return false;
+	}
+	private static function is_collation_default($first, $second, $first_default, $second_default){
+		if(isset($first['collation']) && isset($first_default) && $first['collation'] == $first_default){
+			return true;
+		}
+		if(isset($second['collation']) && isset($second_default) && $second['collation'] == $second_default){
+			return true;
+		}
 		if(empty($first['collation'])
 			&& !empty($second['collation'])
 			&& !empty($first['char_set'])
@@ -314,8 +351,27 @@ class Definitiondiff {
 			return false;
 		}
 
-		$query = \DB::sql("SHOW CHARACTER SET WHERE Charset = '$charset'");
-		return $query->num_rows == 1 && $query->fetch_assoc()['Default collation'] == $collation;
+		return self::query_default_collation($charset) == $collation;
+	}
+	private static $default_collations = [];
+	private static function query_default_collation($charset, $try_synonyms = true){
+		if(!array_key_exists($charset, self::$default_collations)){
+			$query = \DB::sql("SHOW CHARACTER SET WHERE Charset = '$charset'");
+			if($query->num_rows == 1){
+				$default_collations[$charset] = $query->fetch_assoc()['Default collation'];
+			} elseif($try_synonyms) {
+				foreach(self::$charset_synonyms as $synonym_set){
+					if(in_array($charset, $synonym_set)){
+						foreach($synonym_set as $synonym){
+							if($synonym != $charset){
+								$default_collations[$charset] = self::query_default_collation($synonym, false);
+							}
+						}
+					}
+				}
+			}
+		}
+		return $default_collations[$charset] ?? null;
 	}
 
 	private static function generate_alter_queries($database_name, $table_name, $table_diff){
@@ -367,6 +423,9 @@ class Definitiondiff {
 			'COMMENT' => "''"
 		];
 		foreach($table_diff['options'] as $optname => $diff){
+			if($optname == 'COLLATE' || $optname == 'CHARSET'){
+				continue;
+			}
 			if(isset($diff['t2'])){
 				$query = "ALTER TABLE `$database_name`.`$table_name` $optname = $diff[t2]";
 			} elseif(isset($option_defaults[$optname])) {
@@ -376,8 +435,22 @@ class Definitiondiff {
 			}
 			if(isset($query)) $alter_options[] = $query.';';
 		}
+		if(!empty($table_diff['options']['COLLATE']) || !empty($table_diff['options']['CHARSET'])){
+			if(empty($table_diff['options']['CHARSET']['t2'])){
+				$charset = explode('_',$table_diff['options']['COLLATE']['t2'],2)[0];
+			} else {
+				$charset = $table_diff['options']['CHARSET']['t2'];
+			}
+			if(!empty($charset)){
+				$query = "ALTER TABLE `$database_name`.`$table_name` CONVERT TO CHARACTER SET $charset";
+				if(!empty($table_diff['options']['COLLATE']['t2'])){
+					$query .= " COLLATE ".$table_diff['options']['COLLATE']['t2'];
+				}
+				$alter_options[] = $query.';';
+			}
+		}
 
-		return array_merge($drop_keys,$add_columns,$modify_columns,$drop_columns,$add_keys,$alter_options);
+		return array_merge($drop_keys,$drop_columns,$alter_options,$modify_columns,$add_columns,$add_keys);
 	}
 
 	private static function build_column_query_after($row){

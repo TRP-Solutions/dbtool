@@ -7,6 +7,18 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 namespace Parser;
 require_once __DIR__.'/description.php';
 
+define('PARSER\TYPE_LENGTHY',['VARBINARY','VARCHAR']);
+define('PARSER\TYPE_DECIMALY',['DECIMAL','NUMERIC']); // all decimaly types are inty
+define('PARSER\TYPE_FLOATY',['FLOAT','REAL','DOUBLE']); // all floaty types are inty
+define('PARSER\TYPE_INTY',array_merge(['TINYINT','SMALLINT','MEDIUMINT','INT','INTEGER','BIGINT'],TYPE_FLOATY,TYPE_DECIMALY)); // all inty types are optionally lengthy
+define('PARSER\TYPE_LENGTHY_OPT',array_merge(['BIT','BINARY','BLOB','CHAR','TEXT'],TYPE_INTY));
+define('PARSER\TYPE_ENUMY',['ENUM','SET']); // all enumy types are stringy
+define('PARSER\TYPE_STRINGY',array_merge(['CHAR','VARCHAR','TINYTEXT','TEXT','MEDIUMTEXT','LONGTEXT'],TYPE_ENUMY));
+define('PARSER\TYPE_TIMEYWIMEY',['TIME','TIMESTAMP','DATETIME']);
+define('PARSER\TYPE_VOIDY',['DATE','YEAR','TINYBLOB','MEDIUMBLOB','LONGBLOB','JSON']);
+define('PARSER\TYPE_SYNONYMS',['BOOL'=>'TINYINT','BOOLEAN'=>'TINYINT']);
+define('PARSER\TYPE_DEFAULT_LENGTH',['BOOL'=>1,'BOOLEAN'=>1,'SMALLINT'=>6]);
+
 function statement($stmt){
 	$stmttype = '';
 	$stmt = trim($stmt);
@@ -132,22 +144,22 @@ function statement_table($stmt){
 		return $fail('expected: valid identifier [ '.$token.' ]');
 	};
 
-	$type_lengthy = ['VARBINARY','VARCHAR'];
+	$type_lengthy = TYPE_LENGTHY;
 
-	$type_lengthy_opt = ['BIT','BINARY','BLOB','CHAR','TEXT'];
-	$type_inty = ['TINYINT','SMALLINT','MEDIUMINT','INT','INTEGER','BIGINT']; // all inty types are optionally lengthy
-	$type_floaty = ['FLOAT','REAL','DOUBLE']; // all floaty types are inty
-	$type_decimaly = ['DECIMAL','NUMERIC']; // all decimaly types are inty
+	$type_lengthy_opt = TYPE_LENGTHY_OPT;
+	$type_inty = TYPE_INTY; // all inty types are optionally lengthy
+	$type_floaty = TYPE_FLOATY; // all floaty types are inty
+	$type_decimaly = TYPE_DECIMALY; // all decimaly types are inty
 
-	$type_stringy = ['CHAR','VARCHAR','TINYTEXT','TEXT','MEDIUMTEXT','LONGTEXT'];
-	$type_enumy = ['ENUM','SET']; // all enumy types are stringy
+	$type_stringy = TYPE_STRINGY;
+	$type_enumy = TYPE_ENUMY; // all enumy types are stringy
 
-	$type_timeywimey = ['TIME','TIMESTAMP','DATETIME'];
+	$type_timeywimey = TYPE_TIMEYWIMEY;
 
-	$type_voidy = ['DATE','YEAR','TINYBLOB','MEDIUMBLOB','LONGBLOB','JSON'];
+	$type_voidy = TYPE_VOIDY;
 
-	$type_synonyms = ['BOOL'=>'TINYINT','BOOLEAN'=>'TINYINT'];
-	$type_default_length = ['BOOL'=>1,'BOOLEAN'=>1,'SMALLINT'=>6];
+	$type_synonyms = TYPE_SYNONYMS;
+	$type_default_length = TYPE_DEFAULT_LENGTH;
 
 	$type_inty = array_merge($type_inty, $type_floaty, $type_decimaly);
 	$type_lengthy_opt = array_merge($type_lengthy_opt, $type_inty);
