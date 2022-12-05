@@ -74,6 +74,7 @@ class Tablediff {
 
 	static public function reset(){
 		self::$tables = [];
+		self::$users = [];
 		self::$database_error = null;
 		self::$skipped_statements = 0;
 		Definitiondiff::reset();
