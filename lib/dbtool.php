@@ -93,8 +93,10 @@ class DBTool {
 			if($entry['type'] != 'drop'){
 				continue;
 			}
-			DB::sql($entry['sql']);
-			$this->executed_sql[] = $entry['sql'];
+			foreach($entry['sql'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
+			}
 		}
 		return $this->executed_sql;
 	}
@@ -105,8 +107,10 @@ class DBTool {
 			if($entry['type'] != 'drop_user' || $entry['name'] != $username){
 				continue;
 			}
-			DB::sql($entry['sql']);
-			$this->executed_sql[] = $entry['sql'];
+			foreach($entry['sql'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
+			}
 			break;
 		}
 		return $this->executed_sql;
@@ -118,8 +122,10 @@ class DBTool {
 			if($entry['type'] != 'create_user' || $entry['name'] != $username){
 				continue;
 			}
-			DB::sql($entry['sql']);
-			$this->executed_sql[] = $entry['sql'];
+			foreach($entry['sql'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
+			}
 			break;
 		}
 		return $this->executed_sql;
@@ -131,8 +137,10 @@ class DBTool {
 			if($entry['type'] != 'alter_user' || $entry['name'] != $username){
 				continue;
 			}
-			DB::sql($entry['sql']);
-			$this->executed_sql[] = $entry['sql'];
+			foreach($entry['sql'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
+			}
 			break;
 		}
 		return $this->executed_sql;
@@ -141,9 +149,12 @@ class DBTool {
 	private function pre_execute(){
 		Config::set_instance($this->config);
 		foreach($this->result as $entry){
-			if($entry['type'] == 'create_database'){
-				DB::sql($entry['sql']);
-				$this->executed_sql[] = $entry['sql'];
+			if($entry['type'] != 'create_database'){
+				continue;
+			}
+			foreach($entry['sql'] as $sql){
+				DB::sql($sql);
+				$this->executed_sql[] = $sql;
 			}
 		}
 		DB::use_configured();

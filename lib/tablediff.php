@@ -138,7 +138,7 @@ class Tablediff {
 		}
 		$create_database_sql = self::load_db_tables();
 		if(isset($create_database_sql)){
-			$result[] = ['type'=>'create_database','sql'=>$create_database_sql];
+			$result[] = ['type'=>'create_database','sql'=>[$create_database_sql]];
 		}
 		foreach(self::$tables as $name => $table){
 			$table->diff();
@@ -156,7 +156,7 @@ class Tablediff {
 					'sql'=>[$table->create_sql]
 				];
 			} elseif($drop && !empty($table->drop)){
-				$result[] = ['type'=>'drop','name'=>$table->drop,'sql'=>$table->drop_sql];
+				$result[] = ['type'=>'drop','name'=>$table->drop,'sql'=>[$table->drop_sql]];
 			}
 			if($revoke && !empty($table->revoke)){
 				if(!isset($table_obj)){

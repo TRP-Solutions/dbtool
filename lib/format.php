@@ -37,9 +37,15 @@ class Format {
 		$card_userdrop = null;
 		foreach($data as $entry){
 			if($entry['type'] == 'error'){
-				$error_cards[] = [
-					'errors'=>array_map(function($o){return $o['error'];}, $entry['error']),
-				];
+				if(isset($entry['error']['error'])){
+					$error_cards[] = [
+						'errors'=>[$entry['error']['error']]
+					];
+				} else {
+					$error_cards[] = [
+						'errors'=>array_map(function($o){return $o['error'];}, $entry['error']),
+					];
+				}
 			} elseif($entry['type'] == 'create_user'){
 				$cards[] = [
 					'title'=>'Missing user: '.$entry['name'],
@@ -87,7 +93,7 @@ class Format {
 					];
 				}
 				$card_tabledrop['display'][0]['list'][] = $entry['name'];
-				$card_tabledrop['sql'][] = $entry['sql'];
+				$card_tabledrop['sql'] = array_merge($card_tabledrop['sql'],$entry['sql']);
 			} elseif($entry['type'] == 'drop_user'){
 				if(!isset($card_userdrop)){
 					$card_userdrop = [
