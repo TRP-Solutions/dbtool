@@ -183,6 +183,7 @@ class Format {
 		if(isset($old_col['datatype']['collate'])) $new_col['collation'] = $old_col['datatype']['collate'];
 		if(isset($old_col['datatype']['unsigned'])) $new_col['unsigned'] = $old_col['datatype']['unsigned'] ? 'YES' : 'NO';
 		if(isset($old_col['datatype']['zerofill'])) $new_col['zerofill'] = $old_col['datatype']['zerofill'] ? 'YES' : 'NO';
+		if(isset($old_col['datatype']['values'])) $new_col['enum_values'] = implode(', ',$old_col['datatype']['values']);
 
 		$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], true);
 
