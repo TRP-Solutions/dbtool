@@ -539,42 +539,28 @@ function statement_user($stmt){
 		next($tokens);
 		return $token;
 	};
-	$identifier = function(&$value) use ($pop, $fail){
-		$token = $pop();
-		if($token[0] == '`'){
-			$len = strlen($token);
-			if($token[$len-1] == '`'){
-				$value = substr($token,1,-1);
-				return false;
-			}
-		} elseif(preg_match('/^[0-9a-zA-Z$_\']+$/', $token)) {
-			$value = $token;
-			return false;
-		}
-		return $fail('expected: valid identifier [ '.$token.' ]');
-	};
 	$name = function(&$value) use ($pop, $fail){
 		$token = $pop();
 		if($token[0] == '`'){
 			$len = strlen($token);
 			if($token[$len-1] == '`'){
-				$value = substr($token,1,-1);
+				$value = "'".substr($token,1,-1)."'";
 				return false;
 			}
 		} elseif($token[0] == "'"){
 			$len = strlen($token);
 			if($token[$len-1] == "'"){
-				$value = substr($token,1,-1);
+				$value = $token;
 				return false;
 			}
 		} elseif($token[0] == '"'){
 			$len = strlen($token);
 			if($token[$len-1] == '"'){
-				$value = substr($token,1,-1);
+				$value = "'".substr($token,1,-1)."'";
 				return false;
 			}
 		} elseif(preg_match('/^[0-9a-zA-Z$_]+$/', $token)) {
-			$value = $token;
+			$value = "'".$token."'";
 			return false;
 		}
 		return $fail('expected: valid name [ '.$token.' ]');
