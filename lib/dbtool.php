@@ -146,6 +146,11 @@ class DBTool {
 		return $this->executed_sql;
 	}
 
+	public function execute_create_database(){
+		$this->pre_execute();
+		return $this->executed_sql;
+	}
+
 	private function pre_execute(){
 		Config::set_instance($this->config);
 		foreach($this->result as $entry){

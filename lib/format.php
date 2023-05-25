@@ -55,7 +55,7 @@ class Format {
 			} elseif($entry['type'] == 'create_database'){
 				$cards[] = [
 					'title'=>'Missing database',
-					'sql'=>[$entry['sql']],
+					'sql'=>$entry['sql'],
 					'id'=>'sql:create_database'
 				];
 			} elseif($entry['type'] == 'database_only' || $entry['type'] == 'intersection' || $entry['type'] == 'file_only'){
