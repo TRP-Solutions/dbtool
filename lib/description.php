@@ -226,7 +226,7 @@ class Description implements ArrayAccess, JsonSerializable {
 	// INTERFACE IMPLEMENTATIONS
 	// ArrayAccess:
 
-	public function &offsetGet($key){
+	public function &offsetGet(mixed $key): mixed{
 		switch($key){
 			case 'key': return $this->key;
 			case 'type': return $this->type;
@@ -238,7 +238,7 @@ class Description implements ArrayAccess, JsonSerializable {
 		}
 	}
 
-	public function offsetSet($key, $value){
+	public function offsetSet(mixed $key, mixed $value): void{
 		switch($key){
 			case 'key': $this->key = $value; break;
 			case 'type': $this->type = $value; break;
@@ -249,11 +249,11 @@ class Description implements ArrayAccess, JsonSerializable {
 		}
 	}
 
-	public function offsetUnset($key){
+	public function offsetUnset(mixed $key): void{
 
 	}
 
-	public function offsetExists($key){
+	public function offsetExists(mixed $key): bool{
 		switch($key){
 			case 'key': return isset($this->key);
 			case 'type': return isset($this->type);
@@ -266,7 +266,7 @@ class Description implements ArrayAccess, JsonSerializable {
 	}
 
 	// JsonSerializable:
-	public function jsonSerialize(){
+	public function jsonSerialize(): mixed{
 		return $this->to_array()+['__CLASS__'=>'Description'];
 	}
 }

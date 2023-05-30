@@ -89,7 +89,7 @@ function statement_insert($stmt){
 
 // private; shouldn't be used outside this namespace
 function statement_table($stmt){
-	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, null, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 
 	$fail = function($msg) use (&$desc, &$tokens){
 		$desc['error'] = $msg;
@@ -424,7 +424,7 @@ function statement_grant($stmt){
 	$priv_type_sec_tokens = ['ALL' => ['PRIVILEGES'], 'ALTER' => ['ROUTINE'], 'CREATE' => ['ROUTINE', 'TABLESPACE', 'TEMPORARY', 'USER', 'VIEW'], 'GRANT' => ['OPTION'], 'LOCK' => ['TABLES'], 'REPLICATION' => ['CLIENT', 'SLAVE'], 'SHOW' => ['DATABASES', 'VIEW']];
 	$priv_type_ter_tokens = ['CREATE TEMPORARY' => ['TABLES']];
 	$desc = ['type' => 'not grant/revoke', 'key' => 'unknown_'.rand()];
-	$tokens = preg_split('/(\([^\)]*\))|(\'[^\']+\')|(@)|(`[^`]+`)|(\.)|[\s,]+/', $stmt, null, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+	$tokens = preg_split('/(\([^\)]*\))|(\'[^\']+\')|(@)|(`[^`]+`)|(\.)|[\s,]+/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 	
 	$expect = function($token) use (&$tokens, &$desc){
 		if(!is_array($token)){
@@ -456,7 +456,7 @@ function statement_grant($stmt){
 		}
 		$next_token = current($tokens);
 		if($next_token[0] == '('){
-			$columns = preg_split('/[\(\)\s,`]+/', current($tokens), null, PREG_SPLIT_NO_EMPTY);
+			$columns = preg_split('/[\(\)\s,`]+/', current($tokens), 0, PREG_SPLIT_NO_EMPTY);
 			$priv_types[$token.'*'] = ['priv_type' => $token, 'column_list' => $columns];
 			next($tokens);
 		} else {
@@ -499,7 +499,7 @@ function statement_grant($stmt){
 
 // private; shouldn't be used outside this namespace
 function statement_user($stmt){
-	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, null, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 
 	$fail = function($msg) use (&$desc, &$tokens){
 		$desc['error'] = $msg;
