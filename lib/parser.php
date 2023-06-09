@@ -69,7 +69,7 @@ function encode_datatype($datatype, $include_attributes = true){
 	if($include_attributes){
 		if(isset($datatype['unsigned']) && $datatype['unsigned']) $str .= " UNSIGNED";
 		if(isset($datatype['zerofill']) && $datatype['zerofill']) $str .= " ZEROFILL";
-		if(isset($datatype['character set'])) $str .= " CHARACTER SET ${datatype['character set']}";
+		if(isset($datatype['character set'])) $str .= " CHARACTER SET {$datatype['character set']}";
 		if(isset($datatype['collate'])) $str .= " COLLATE $datatype[collate]";
 	}
 	return $str;
