@@ -51,11 +51,17 @@ class DB {
 			return array_map(['DB','sql'], $sql);
 		}
 		$mysqli = self::get();
-		$result = $mysqli->query($sql);
-		if(!$result){
-			self::msg('error', 'SQL error: '.$mysqli->error.' - Query: '.json_encode($sql));
+		try{
+			$result = $mysqli->query($sql);
+			if(!$result){
+				self::msg('error', 'SQL error: '.$mysqli->error.' - Query: '.json_encode($sql));
+				return false;
+			}
+			return $result;
+		} catch (\Exception $e){
+			self::msg('error', 'Exception when running SQL: '.$e->getMessage()." - Query: ".json_encode($sql));
+			return false;
 		}
-		return $result;
 	}
 
 	public static function prepare($stmt){

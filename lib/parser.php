@@ -69,8 +69,8 @@ function encode_datatype($datatype, $include_attributes = true){
 	if($include_attributes){
 		if(isset($datatype['unsigned']) && $datatype['unsigned']) $str .= " UNSIGNED";
 		if(isset($datatype['zerofill']) && $datatype['zerofill']) $str .= " ZEROFILL";
-		if(isset($datatype['character set'])) $str .= " CHARACTER SET {$datatype['character set']}";
-		if(isset($datatype['collate'])) $str .= " COLLATE $datatype[collate]";
+		if(isset($datatype['character set'])) $str .= " CHARACTER SET ".$datatype['character set'];
+		if(isset($datatype['collate'])) $str .= " COLLATE ".$datatype['collate'];
 	}
 	return $str;
 }
@@ -250,8 +250,7 @@ function statement_table($stmt){
 		}
 	};
 
-	$index_columns = function(&$coldesc) use (&$tokens, $expect, $identifier, $pop){
-		$coldesc['index_columns'] = [];
+	$index_columns = function(&$value) use (&$tokens, $expect, $identifier, $pop){
 		if($e = $expect('(')) return $e;
 		do {
 			$col = [];
@@ -261,9 +260,15 @@ function statement_table($stmt){
 				if($e = $expect(')')) return $e;
 			}
 			$col['sort'] = match_token($tokens,['ASC','DESC']);
-			$coldesc['index_columns'][] = $col;
+			$value[] = $col;
 		} while (match_token($tokens, ','));
 		if($e = $expect(')')) return $e;
+	};
+
+	$index_reference = function(&$coldesc) use (&$tokens, $expect, $identifier, $pop, $index_columns){
+		if($e = $expect('REFERENCES')) return $e;
+		if($e = $identifier($coldesc['index_reference_table'])) return $e;
+		if($e = $index_columns($coldesc['index_reference_columns'])) return $e;
 	};
 
 	$optional_index_name = function(&$value) use (&$tokens, $identifier){
@@ -273,12 +278,41 @@ function statement_table($stmt){
 		}
 	};
 
+	$optional_reference_option = function(&$coldesc, $key, $action) use (&$tokens){
+		if(match_token($tokens, 'ON') && match_token($tokens, $action)){
+			if($token = match_token($tokens, ['RESTRICT','CASCADE','SET','NO'])){
+				if($token == 'SET'){
+					if($token = match_token(['NULL','ACTION'])){
+						$coldesc[$key] = 'SET '.$token;
+						return;
+					}
+				} elseif($token == 'NO'){
+					if(match_token('DEFAULT')){
+						$coldesc[$key] = 'NO DEFAULT';
+						return;
+					}
+				} elseif(!empty($token)) {
+					$coldesc[$key] = $token;
+					return;
+				}
+			}
+			return $fail("expected: ON $action {RESTRICT | CASCADE | SET NULL | SET DEFAULT | NO ACTION}");
+		}
+	};
+
 	$last_column = '#FIRST';
-	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type,
-			$optional_index_name, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column){
+	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type, $index_reference,
+			$optional_index_name, $optional_reference_option, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column){
 		$coldesc = [];
 		$is_unique = null;
-		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT'])){
+		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT','FOREIGN','CONSTRAINT'])){
+			if($token == 'CONSTRAINT'){
+				if($e = $identifier($coldesc['constraint'])) return $e;
+				$token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT','FOREIGN']);
+				if($token === false){
+					return $fail('expected INDEX definition');
+				}
+			}
 			$coldesc['type'] = 'index';
 			if($token == 'FULLTEXT'){
 				match_token($tokens, ['INDEX','KEY']);
@@ -290,12 +324,22 @@ function statement_table($stmt){
 				if($e = $expect('KEY')) return $e;
 				$coldesc['index_type'] = 'primary';
 				$optional_index_name($ignore);
+			} elseif($token == 'FOREIGN'){
+				if($e = $expect('KEY')) return $e;
+				$coldesc['index_type'] = 'foreign';
 			} else {
 				$coldesc['index_type'] = '';
 			}
-			if($token != 'PRIMARY') $optional_index_name($coldesc['name']);
+			if($token != 'PRIMARY'){
+				$optional_index_name($coldesc['name']);
+			}
 			if($e = $index_type($coldesc)) return $e;
-			if($e = $index_columns($coldesc)) return $e;
+			if($e = $index_columns($coldesc['index_columns'])) return $e;
+			if($token == 'FOREIGN'){
+				if($e = $index_reference($coldesc)) return $e;
+				if($e = $optional_reference_option($coldesc, 'index_on_delete','DELETE')) return $e;
+				if($e = $optional_reference_option($coldesc, 'index_on_update','UPDATE')) return $e;
+			}
 		} else {
 			$coldesc['type'] = 'column';
 			if($e = $identifier($coldesc['name'])) return $e;

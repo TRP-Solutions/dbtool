@@ -165,7 +165,7 @@ class Definitiondiff {
 			$file_table['table_options'],
 			$db_table['table_options']
 		);
-		$keys = self::compare_elems($file_indexes, $db_indexes, $file_key, $db_key);
+		$keys = self::compare_elems($file_indexes, $db_indexes, $file_key, $db_key, ['Definitiondiff','index_is_equal']);
 
 		if(!empty($db_table['table_options']['COLLATE'])
 			&& empty($file_table['table_options']['COLLATE'])
@@ -205,6 +205,7 @@ class Definitiondiff {
 		} elseif($col['type'] == 'index'){
 			unset($col['type']); //compatibility with web diffview
 			$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
+			if(isset($col['index_reference_columns'])) $col['refcols'] = array_map('\Parser\encode_index_column', $col['index_reference_columns']);
 			$name = $col['index_type'] == 'primary' ? 'PRIMARY' : (isset($col['name']) ? $col['name'] : $col['cols'][0]);
 			if(isset($keys[$name])){
 				$i = 1;
@@ -214,7 +215,7 @@ class Definitiondiff {
 					$i++;
 				}
 			}
-			if(!isset($col['name']) && $name != 'PRIMARY') $col['name'] = $name;
+			if(!isset($col['name']) && $name != 'PRIMARY' && $col['index_type'] != 'foreign') $col['name'] = $name;
 			$keys[$name] = $col;
 		}
 	}
@@ -235,7 +236,8 @@ class Definitiondiff {
 						$metadata_a['COLLATE']??self::query_default_collation($metadata_a['CHARSET']),
 						$metadata_b['COLLATE']??self::query_default_collation($metadata_b['CHARSET'])
 					)
-					||$key == 'char_set' && self::is_charset_default(
+					||$key == 'char_set' && self::is_default(
+						'char_set',
 						$col_a,
 						$col_b,
 						$metadata_a['CHARSET']??null,
@@ -256,6 +258,26 @@ class Definitiondiff {
 				){
 					continue;
 				}
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static function index_is_equal($index_a, $index_b, $name){
+		if(!isset($index_a) || !isset($index_b)) return false;
+		$keys = array_unique(array_merge(array_keys($index_a), array_keys($index_b)));
+		foreach($keys as $key){
+			if(!array_key_exists($key, $index_a) || !array_key_exists($key, $index_b)){
+				if((
+					$key == 'index_on_delete' || $key == 'index_on_update') && self::is_default($key, $index_a, $index_b, 'RESTRICT', 'RESTRICT')
+					|| $key == 'constraint'
+				){
+					continue;
+				}
+				return false;
+			}
+			if($index_a[$key] != $index_b[$key]) {
 				return false;
 			}
 		}
@@ -318,11 +340,11 @@ class Definitiondiff {
 		if(!isset($b[1])) $b[1] = null;
 		return $a[1] == $b[1] && self::is_synonym($a[0], $b[0], self::$charset_synonyms);
 	}
-	private static function is_charset_default($first, $second, $first_default, $second_default){
-		if(isset($first['char_set']) && isset($first_default) && $first['char_set'] == $first_default){
+	private static function is_default($key, $first, $second, $first_default, $second_default){
+		if(isset($first[$key]) && isset($first_default) && $first[$key] == $first_default){
 			return true;
 		}
-		if(isset($second['char_set']) && isset($second_default) && $second['char_set'] == $second_default){
+		if(isset($second[$key]) && isset($second_default) && $second[$key] == $second_default){
 			return true;
 		}
 		return false;
@@ -404,6 +426,9 @@ class Definitiondiff {
 			if(isset($diff['t1'])){
 				if($diff['t1']['index_type'] == 'primary'){
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP PRIMARY KEY;";
+				} elseif($diff['t1']['index_type'] == 'foreign'){
+					$fk_symbol = $diff['t1']['constraint'] ?? $keyname;
+					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP FOREIGN KEY $fk_symbol;";
 				} else {
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP KEY $keyname;";
 				}
@@ -412,10 +437,21 @@ class Definitiondiff {
 				$query = "ALTER TABLE `$database_name`.`$table_name` ADD ";
 				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
 				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';
+				elseif($diff['t2']['index_type'] == 'foreign') $query .= 'FOREIGN ';
 				$query .= "KEY ";
 				if(isset($diff['t2']['name'])) $query .= '`'.$diff['t2']['name'].'` ';
-				$query .= '(`'.implode('`,`',$diff['t2']['cols']).'`);';
-				$add_keys[] = $query;
+				$query .= '(`'.implode('`,`',$diff['t2']['cols']).'`)';
+				if(isset($diff['t2']['index_reference_table'])){
+					$query .= ' REFERENCES `'.$diff['t2']['index_reference_table'].'`';
+					$query .= '(`'.implode('`,`',$diff['t2']['refcols']).'`)';
+				}
+				if(isset($diff['t2']['index_on_delete'])){
+					$query .= ' ON DELETE '.$diff['t2']['index_on_delete'];
+				}
+				if(isset($diff['t2']['index_on_update'])){
+					$query .= ' ON UPDATE '.$diff['t2']['index_on_update'];
+				}
+				$add_keys[] = $query.';';
 			}
 		}
 

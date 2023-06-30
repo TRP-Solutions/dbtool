@@ -62,10 +62,7 @@ class DBTool {
 				|| $entry['type'] == 'alter_user'
 				|| $entry['type'] == 'drop_user'
 			){
-				foreach($entry['sql'] as $sql){
-					DB::sql($sql);
-					$this->executed_sql[] = $sql;
-				}
+				$this->execute_entry($entry);
 			}
 		}
 		return $this->executed_sql;
@@ -78,10 +75,7 @@ class DBTool {
 				($entry['type'] == 'intersection' || $entry['type'] == 'file_only' || $entry['type'] == 'database_only')
 				&& $entry['name'] == $tablename
 			){
-				foreach($entry['sql'] as $sql){
-					DB::sql($sql);
-					$this->executed_sql[] = $sql;
-				}
+				$this->execute_entry($entry);
 			}
 		}
 		return $this->executed_sql;
@@ -93,10 +87,7 @@ class DBTool {
 			if($entry['type'] != 'drop'){
 				continue;
 			}
-			foreach($entry['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
-			}
+			$this->execute_entry($entry);
 		}
 		return $this->executed_sql;
 	}
@@ -107,10 +98,7 @@ class DBTool {
 			if($entry['type'] != 'drop_user' || $entry['name'] != $username){
 				continue;
 			}
-			foreach($entry['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
-			}
+			$this->execute_entry($entry);
 			break;
 		}
 		return $this->executed_sql;
@@ -122,10 +110,7 @@ class DBTool {
 			if($entry['type'] != 'create_user' || $entry['name'] != $username){
 				continue;
 			}
-			foreach($entry['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
-			}
+			$this->execute_entry($entry);
 			break;
 		}
 		return $this->executed_sql;
@@ -137,10 +122,7 @@ class DBTool {
 			if($entry['type'] != 'alter_user' || $entry['name'] != $username){
 				continue;
 			}
-			foreach($entry['sql'] as $sql){
-				DB::sql($sql);
-				$this->executed_sql[] = $sql;
-			}
+			$this->execute_entry($entry);
 			break;
 		}
 		return $this->executed_sql;
@@ -149,6 +131,13 @@ class DBTool {
 	public function execute_create_database(){
 		$this->pre_execute();
 		return $this->executed_sql;
+	}
+
+	private function execute_entry($entry){
+		foreach($entry['sql'] as $sql){
+			$result = DB::sql($sql);
+			if($result !== false) $this->executed_sql[] = $sql;
+		}
 	}
 
 	private function pre_execute(){
