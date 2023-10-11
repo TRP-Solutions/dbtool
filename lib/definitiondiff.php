@@ -397,6 +397,7 @@ class Definitiondiff {
 	}
 
 	private static function generate_alter_queries($database_name, $table_name, $table_diff){
+		$drop_foreign_keys = [];
 		$drop_keys = [];
 		$add_columns = [];
 		$modify_columns = [];
@@ -428,7 +429,7 @@ class Definitiondiff {
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP PRIMARY KEY;";
 				} elseif($diff['t1']['index_type'] == 'foreign'){
 					$fk_symbol = $diff['t1']['constraint'] ?? $keyname;
-					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP FOREIGN KEY $fk_symbol;";
+					$drop_foreign_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP FOREIGN KEY $fk_symbol;";
 				} else {
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP KEY $keyname;";
 				}
@@ -486,7 +487,7 @@ class Definitiondiff {
 			}
 		}
 
-		return array_merge($drop_keys,$drop_columns,$alter_options,$modify_columns,$add_columns,$add_keys);
+		return array_merge($drop_foreign_keys,$drop_keys,$drop_columns,$alter_options,$modify_columns,$add_columns,$add_keys);
 	}
 
 	private static function build_column_query_after($row){
