@@ -217,7 +217,7 @@ function show_result($result){
 		elseif($table['type'] == 'database_only') $intersection_tables[] = $table;
 		elseif($table['type'] == 'drop'){
 			$db_only_tables[] = $table['name'];
-			$drop_queries[] = $table['sql'];
+			$drop_queries = array_merge($drop_queries,$table['sql']);
 		} elseif($table['type'] == 'create_user'){
 			$create_users[] = $table;
 		} elseif($table['type'] == 'alter_user'){
