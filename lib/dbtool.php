@@ -40,6 +40,7 @@ class DBTool {
 	protected function __construct($sources, $config){
 		$this->batch_number = self::$batch_counter++;
 		$this->config = $config;
+		$source_empty = true;
 		foreach($sources as $source){
 			if(!empty($source->warnings)){
 				$this->warnings = $source->warnings;
@@ -47,8 +48,16 @@ class DBTool {
 			if($source->error){
 				$this->error = $source->error;
 			}
+			if(!$source->is_empty()){
+				$source_empty = false;
+			}
 		}
-		$this->result = Tablediff::run($sources);
+		if($source_empty){
+			$this->error = "Sources are empty";
+			$this->result = [];
+		} else {
+			$this->result = Tablediff::run($sources);
+		}
 	}
 
 	public function execute(){

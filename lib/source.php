@@ -48,6 +48,10 @@ class Source {
 		return $this->stmts;
 	}
 
+	public function is_empty(){
+		return empty($this->stmts);
+	}
+
 	static private function lines_to_statements($lines){
 		$stmts = [];
 		$statement = [];
