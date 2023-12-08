@@ -161,6 +161,48 @@ class Definitiondiff {
 			}
 		}
 
+		// add implicit indexes for any foreign keys that aren't explicitly supported by an index
+		$data = [];
+		$implicit_indexes = [];
+		$rename_foreign_keys = [];
+		foreach($file_indexes as $foreign_key_name => $foreign_key){
+			if($foreign_key['index_type'] == 'foreign'){
+				$has_matching_index = false;
+				foreach($file_indexes as $index){
+					if($index['index_type'] != 'foreign'){
+						$slice = array_slice($index['cols'],0,count($foreign_key['cols']));
+						if($slice == $foreign_key['cols']){
+							$has_matching_index = true;
+						}
+					}
+				}
+				if(!$has_matching_index){
+					$name = $basename = $foreign_key['cols'][0];
+					if(isset($file_indexes[$name])){
+						$i = 1;
+						while(isset($file_indexes[$name])){
+							$name = "{$basename}_$i";
+							$i++;
+						}
+					}
+					$rename_foreign_keys[$foreign_key_name] = $name;
+					$implicit_indexes[$foreign_key_name] = [
+						'index_type'=>'',
+						'name'=>$basename,
+						'index_columns'=>$foreign_key['index_columns'],
+						'cols'=>$foreign_key['cols'],
+						'implicit'=>$name,
+					];
+				}
+			}
+		}
+		if(!empty($rename_foreign_keys)){
+			foreach($rename_foreign_keys as $foreign_key => $new_name){
+				$file_indexes[$new_name] = $file_indexes[$foreign_key];
+				$file_indexes[$foreign_key] = $implicit_indexes[$foreign_key];
+			}
+		}
+
 		$columns = self::compare_elems($file_columns, $db_columns, $file_key, $db_key, ['DefinitionDiff','column_is_equal'],
 			$file_table['table_options'],
 			$db_table['table_options']
@@ -265,9 +307,16 @@ class Definitiondiff {
 	}
 
 	private static function index_is_equal($index_a, $index_b, $name){
+		if(
+			isset($index_a['implicit']) && !isset($index_b)
+			|| !isset($index_a) && isset($index_b['implicit'])
+		){
+			return true;
+		}
 		if(!isset($index_a) || !isset($index_b)) return false;
 		$keys = array_unique(array_merge(array_keys($index_a), array_keys($index_b)));
 		foreach($keys as $key){
+			if($key == 'implicit') continue;
 			if(!array_key_exists($key, $index_a) || !array_key_exists($key, $index_b)){
 				if((
 					$key == 'index_on_delete' || $key == 'index_on_update') && self::is_default($key, $index_a, $index_b, 'RESTRICT', 'RESTRICT')
@@ -434,7 +483,7 @@ class Definitiondiff {
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP KEY $keyname;";
 				}
 			}
-			if(isset($diff['t2'])){
+			if(isset($diff['t2']) && !($diff['t2']['implicit']??false)){
 				$query = "ALTER TABLE `$database_name`.`$table_name` ADD ";
 				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
 				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';
