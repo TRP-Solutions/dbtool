@@ -268,6 +268,13 @@ function statement_table($stmt){
 	$index_reference = function(&$coldesc) use (&$tokens, $expect, $identifier, $pop, $index_columns){
 		if($e = $expect('REFERENCES')) return $e;
 		if($e = $identifier($coldesc['index_reference_table'])) return $e;
+		if(match_token($tokens, '.')){
+			$coldesc['index_reference_database'] = $coldesc['index_reference_table'];
+			if($e = $identifier($coldesc['index_reference_table'])) return $e;
+			$coldesc['index_reference_table_quoted'] = '`'.$coldesc['index_reference_database'].'`.`'.$coldesc['index_reference_table'].'`';
+		} else {
+			$coldesc['index_reference_table_quoted'] = '`'.$coldesc['index_reference_table'].'`';
+		}
 		if($e = $index_columns($coldesc['index_reference_columns'])) return $e;
 	};
 
