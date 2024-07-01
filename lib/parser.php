@@ -289,13 +289,13 @@ function statement_table($stmt){
 		if(match_token($tokens, 'ON') && match_token($tokens, $action)){
 			if($token = match_token($tokens, ['RESTRICT','CASCADE','SET','NO'])){
 				if($token == 'SET'){
-					if($token = match_token(['NULL','ACTION'])){
+					if($token = match_token($tokens, ['NULL','DEFAULT'])){
 						$coldesc[$key] = 'SET '.$token;
 						return;
 					}
 				} elseif($token == 'NO'){
-					if(match_token('DEFAULT')){
-						$coldesc[$key] = 'NO DEFAULT';
+					if(match_token($tokens, 'ACTION')){
+						$coldesc[$key] = 'NO ACTION';
 						return;
 					}
 				} elseif(!empty($token)) {
