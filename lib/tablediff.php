@@ -213,8 +213,9 @@ class Tablediff {
 	}
 
 	static private function load_db_tables(){
-		$dbname = DB::escape(Config::get('database'));
+		$dbname = Config::get('database');
 		if(empty($dbname)) return;
+		$dbname = DB::escape($dbname);
 
 		$query = DB::sql("SHOW DATABASES LIKE '$dbname';");
 		if($query->num_rows){
