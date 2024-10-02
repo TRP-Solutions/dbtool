@@ -29,7 +29,8 @@ $long_options = [
 	'config'=>OPTION_REQUIRES_VALUE,
 	'variables'=>OPTION_REQUIRES_KEY_VALUE,
 	'host'=>OPTION_REQUIRES_VALUE,
-	'statement'=>OPTION_REQUIRES_VALUE | OPTION_LIST_VALUE
+	'statement'=>OPTION_REQUIRES_VALUE | OPTION_LIST_VALUE,
+	'guard'=>OPTION_VOID
 ];
 $short_options = [
 	'h'=>'help',
@@ -42,7 +43,8 @@ $short_options = [
 	'c'=>'config',
 	'w'=>'variables',
 	'h'=>'host',
-	's'=>'statement'
+	's'=>'statement',
+	'g'=>'guard'
 ];
 
 $options = parse_options();
@@ -101,6 +103,8 @@ General Options:
   -sVALUE, --statement=VALUE          A comma separated subset of
                                          ALTER,CREATE,DROP,GRANT,REVOKE
                                        Enabling a mode allows such statements.
+  -g, --guard                         Prevent executing ALTER statements that
+                                       might cause data loss
   -p[VALUE], --password[=VALUE]       Use given password or if not set, request
                                        password before connecting to the
                                        database.

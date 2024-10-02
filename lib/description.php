@@ -3,6 +3,8 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
 class Description implements ArrayAccess, JsonSerializable {
 	public static function from_grant_row($row){
 		$ignore_host = defined('PERMISSION_IGNORE_HOST') && PERMISSION_IGNORE_HOST;
@@ -62,7 +64,7 @@ class Description implements ArrayAccess, JsonSerializable {
 		if($user[0]=="'") $user = str_replace("'", "`", $user);
 		$database = self::quote_id($database);
 		$table = self::quote_id($table);
-		$this->key = Self::build_grant_key($user,$database,$table);
+		$this->key = self::build_grant_key($user,$database,$table);
 		$this->type = $type;
 		$this->user = $user;
 		$this->table = $table;

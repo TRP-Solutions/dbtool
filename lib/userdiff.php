@@ -4,6 +4,7 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 
+declare(strict_types=1);
 class Userdiff {
 	private $name, $file_stmt, $db_stmt, $parsed_user = false, $diff_calculated = false, $diff, $sources = [];
 
@@ -20,6 +21,8 @@ class Userdiff {
 			$this->diff_calculated = false;
 			$this->sources[] = $source;
 		} else {
+			$this->errors[] = ['errno'=>999,'error'=>'Userdiff->from_file uses self::compare which is not implemented yet'];
+			return;
 			$diff = self::compare($this->file_stmt, $stmt);
 			if($diff['is_empty']){
 				$this->sources[] = $source;

@@ -3,6 +3,9 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
+require_once __DIR__."/statement.php";
 class Definitiondiff {
 	static private $known_tables;
 
@@ -102,7 +105,7 @@ class Definitiondiff {
 	public function get_drop(){
 		$db_stmt = $this->get_db_stmt();
 		if(!isset($this->file_stmt) && isset($db_stmt) && !isset($db_stmt['error'])){
-			$sql = "DROP TABLE `$this->dbname`.`$this->name`;";
+			$sql = Statement::drop_table($this->dbname, $this->name);
 			return [$db_stmt['name'],$sql];
 		}
 		return [null,null];
@@ -209,6 +212,14 @@ class Definitiondiff {
 		);
 		$keys = self::compare_elems($file_indexes, $db_indexes, $file_key, $db_key, ['Definitiondiff','index_is_equal']);
 
+		if(!empty($db_table['table_options']['ENGINE'])
+			&& empty($file_table['table_options']['ENGINE'])){
+			$file_table['table_options']['ENGINE'] = self::query_variable('default_storage_engine');
+		}
+		if(!empty($db_table['table_options']['CHARSET'])
+			&& empty($file_table['table_options']['CHARSET'])) {
+			$file_table['table_options']['CHARSET'] = self::query_variable('character_set_database');
+		}
 		if(!empty($db_table['table_options']['COLLATE'])
 			&& empty($file_table['table_options']['COLLATE'])
 			&& !empty($file_table['table_options']['CHARSET'])
@@ -264,13 +275,13 @@ class Definitiondiff {
 
 	private static function column_is_equal($col_a, $col_b, $name, $metadata_a, $metadata_b){
 		if(!isset($col_a) || !isset($col_b)) return false;
-		$keys = array_unique(array_merge(array_keys($col_a), array_keys($col_b)));
+		$keys = array_unique(array_merge(array_keys((array)$col_a), array_keys((array)$col_b)));
 		foreach($keys as $key){
 			if($key == 'type'){
 				// 'type' field is kept around to generate the SQL statements
 				continue;
 			}
-			if(!array_key_exists($key, $col_a) || !array_key_exists($key, $col_b)){
+			if(!array_key_exists($key, (array)$col_a) || !array_key_exists($key, (array)$col_b)){
 				if($key == 'length'
 					||$key == 'collation' && self::is_collation_default(
 						$col_a,
@@ -294,6 +305,7 @@ class Definitiondiff {
 			if($col_a[$key] != $col_b[$key]) {
 				if(
 					$key == 'default' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
+					|| $key == 'on_update' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
 					|| $key == 'data_type' && self::compare_type($col_a[$key],$col_b[$key])
 					|| $key == 'char_set' && self::is_synonym($col_a[$key],$col_b[$key],self::$charset_synonyms)
 					|| $key == 'collation' && self::compare_collation($col_a[$key],$col_b[$key])
@@ -377,9 +389,9 @@ class Definitiondiff {
 	}
 	private static function compare_type($a, $b){
 		$pattern = "/\([0-9 ]+\)/";
-		$a_replace = preg_replace($pattern, '', $a);
+		$a_replace = preg_replace($pattern, '', (string) $a);
 		if($a_replace == $b) return true;
-		$b_replace = preg_replace($pattern, '', $b);
+		$b_replace = preg_replace($pattern, '', (string) $b);
 		return $b_replace == $a;
 	}
 	private static function compare_collation($a, $b){
@@ -445,6 +457,11 @@ class Definitiondiff {
 		return $default_collations[$charset] ?? null;
 	}
 
+	private static function query_variable($variable){
+		$query = \DB::sql("SHOW VARIABLES LIKE '$variable';");
+		return $query->num_rows ? $query->fetch_array()[1] : null;
+	}
+
 	private static function generate_alter_queries($database_name, $table_name, $table_diff){
 		$drop_foreign_keys = [];
 		$drop_keys = [];
@@ -456,19 +473,11 @@ class Definitiondiff {
 
 		foreach($table_diff['columns'] as $colname => $diff){
 			if(isset($diff['t1']) && isset($diff['t2'])){
-				// modify
-				$query = "ALTER TABLE `$database_name`.`$table_name` MODIFY COLUMN ".Format::column_A_to_definition($diff['t2']);
-				if(isset($diff['t1']['after'])
-					&& $diff['t1']['after'] != $diff['t2']['after']){
-					$query .= self::build_column_query_after($diff['t2']);
-				}
-				$modify_columns[] = $query.';';
+				$modify_columns[] = Statement::modify_column($database_name, $table_name, $diff);
 			} elseif(isset($diff['t2'])){
-				// add
-				$add_columns[] = "ALTER TABLE `$database_name`.`$table_name` ADD COLUMN ".Format::column_A_to_definition($diff['t2']).self::build_column_query_after($diff['t2']).';';
+				$add_columns[] = Statement::add_column($database_name, $table_name, $diff);
 			} elseif(isset($diff['t1'])){
-				// drop
-				$drop_columns[] = "ALTER TABLE `$database_name`.`$table_name` DROP COLUMN `$colname`;";
+				$drop_columns[] = Statement::drop_column($database_name, $table_name, $colname, $diff);
 			}
 		}
 
@@ -522,10 +531,10 @@ class Definitiondiff {
 			if(isset($query)) $alter_options[] = $query.';';
 		}
 		if(!empty($table_diff['options']['COLLATE']) || !empty($table_diff['options']['CHARSET'])){
-			if(empty($table_diff['options']['CHARSET']['t2'])){
+			if(empty($table_diff['options']['CHARSET']['t2']) && !empty($table_diff['options']['COLLATE']['t2'])){
 				$charset = explode('_',$table_diff['options']['COLLATE']['t2'],2)[0];
 			} else {
-				$charset = $table_diff['options']['CHARSET']['t2'];
+				$charset = $table_diff['options']['CHARSET']['t2'] ?? null;
 			}
 			if(!empty($charset)){
 				$query = "ALTER TABLE `$database_name`.`$table_name` CONVERT TO CHARACTER SET $charset";

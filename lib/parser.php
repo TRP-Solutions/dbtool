@@ -4,20 +4,10 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 
+declare(strict_types=1);
 namespace Parser;
 require_once __DIR__.'/description.php';
-
-define('PARSER\TYPE_LENGTHY',['VARBINARY','VARCHAR']);
-define('PARSER\TYPE_DECIMALY',['DECIMAL','NUMERIC']); // all decimaly types are inty
-define('PARSER\TYPE_FLOATY',['FLOAT','REAL','DOUBLE']); // all floaty types are inty
-define('PARSER\TYPE_INTY',array_merge(['TINYINT','SMALLINT','MEDIUMINT','INT','INTEGER','BIGINT'],TYPE_FLOATY,TYPE_DECIMALY)); // all inty types are optionally lengthy
-define('PARSER\TYPE_LENGTHY_OPT',array_merge(['BIT','BINARY','BLOB','CHAR','TEXT'],TYPE_INTY));
-define('PARSER\TYPE_ENUMY',['ENUM','SET']); // all enumy types are stringy
-define('PARSER\TYPE_STRINGY',array_merge(['CHAR','VARCHAR','TINYTEXT','TEXT','MEDIUMTEXT','LONGTEXT'],TYPE_ENUMY));
-define('PARSER\TYPE_TIMEYWIMEY',['TIME','TIMESTAMP','DATETIME']);
-define('PARSER\TYPE_VOIDY',['DATE','YEAR','TINYBLOB','MEDIUMBLOB','LONGBLOB','JSON']);
-define('PARSER\TYPE_SYNONYMS',['BOOL'=>'TINYINT','BOOLEAN'=>'TINYINT']);
-define('PARSER\TYPE_DEFAULT_LENGTH',['BOOL'=>1,'BOOLEAN'=>1,'SMALLINT'=>6]);
+require_once __DIR__.'/sqltype.php';
 
 function statement($stmt){
 	$stmttype = '';
@@ -50,7 +40,7 @@ function statement($stmt){
 }
 
 function encode_datatype($datatype, $include_attributes = true){
-	$str = $datatype['name'];
+	$str = $datatype['type']->normalized_name();
 	if(isset($datatype['length'])) $length = $datatype['length'];
 	elseif(isset($datatype['precision'])) $length = $datatype['precision'];
 	elseif(isset($datatype['char_max_length'])) $length = $datatype['char_max_length'];
@@ -143,72 +133,76 @@ function statement_table($stmt){
 		}
 		return $fail('expected: valid identifier [ '.$token.' ]');
 	};
+	$paren_expression = function(&$value) use (&$tokens, $pop, $fail) {
+		if(current($tokens) == '('){
+			$paren_level = -1;
+			$expr_stack = [[]];
+			while(current($tokens)){
+				$token = $pop();
+				if($token == '('){
+					$paren_level += 1;
+					$expr_stack[$paren_level] = [];
+				} elseif($token == ')'){
+					$expr = '('.implode(' ',$expr_stack[$paren_level]).')';
+					$paren_level -= 1;
+					if($paren_level == -1){
+						$value .= $expr;
+						return;
+					} else {
+						$expr_stack[$paren_level][] = $expr;
+					}
+				} else {
+					$expr_stack[$paren_level][] = $token;
+				}
+			}
+		}
+		return $fail('expected: ( expression )');
+	};
 
-	$type_lengthy = TYPE_LENGTHY;
-
-	$type_lengthy_opt = TYPE_LENGTHY_OPT;
-	$type_inty = TYPE_INTY; // all inty types are optionally lengthy
-	$type_floaty = TYPE_FLOATY; // all floaty types are inty
-	$type_decimaly = TYPE_DECIMALY; // all decimaly types are inty
-
-	$type_stringy = TYPE_STRINGY;
-	$type_enumy = TYPE_ENUMY; // all enumy types are stringy
-
-	$type_timeywimey = TYPE_TIMEYWIMEY;
-
-	$type_voidy = TYPE_VOIDY;
-
-	$type_synonyms = TYPE_SYNONYMS;
-	$type_default_length = TYPE_DEFAULT_LENGTH;
-
-	$type_inty = array_merge($type_inty, $type_floaty, $type_decimaly);
-	$type_lengthy_opt = array_merge($type_lengthy_opt, $type_inty);
-	$type_stringy = array_merge($type_stringy, $type_enumy);
-	$known_types = array_merge($type_lengthy, $type_lengthy_opt, $type_stringy, $type_timeywimey, $type_voidy, array_keys($type_synonyms));
-
-	$data_type = function(&$coldesc) use (&$tokens, $pop, $expect, $type_synonyms, $type_default_length,
-			$type_lengthy, $type_lengthy_opt, $type_inty, $type_floaty, $type_decimaly,
-			$type_timeywimey, $type_stringy, $type_enumy, $type_voidy, $known_types){
+	$data_type = function(&$coldesc) use (&$tokens, $pop, $expect, $fail){
 		$coldesc['datatype'] = [];
 		$close_paren = false;
-		$typename = match_token($tokens, $known_types);
-		$coldesc['datatype']['name'] = $type = isset($type_synonyms[$typename]) ? $type_synonyms[$typename] : $typename;
-		if(in_array($type, $type_floaty)){
+		$type = match_type($tokens);
+		if($type === false){
+			return $fail('expected: [ANY VALID TYPE]');
+		}
+		$coldesc['datatype'] = \Datatype::from($type);
+		if($type->is_floating_point()){
 			match_token($tokens,'PRECISION');
 		}
 
-		if(in_array($type, $type_floaty) || in_array($type, $type_decimaly)) $lengthy_name = 'precision';
-		elseif(in_array($type, $type_stringy)) $lengthy_name = 'char_max_length';
-		else $lengthy_name = 'length';
-		if(in_array($type, $type_lengthy)){
+		if($type->size_required()){
 			if($e = $expect('(')) return $e;
-			$coldesc['datatype'][$lengthy_name] = $pop();
+			$coldesc['datatype'][$type->size_name()] = $pop();
 			$close_paren = true;
-		} elseif(in_array($type, $type_lengthy_opt)){
+		} elseif($type->size_optional()){
 			if(match_token($tokens,'(')){
-				$coldesc['datatype'][$lengthy_name] = $pop();
+				$coldesc['datatype'][$type->size_name()] = $pop();
 				$close_paren = true;
-				if(in_array($type, $type_floaty)){
+				if($type->is_floating_point()){
 					if($e = $expect(',')) return $e;
 					$coldesc['datatype']['decimals'] = $pop();
-				} elseif(in_array($type, $type_decimaly) && match_token($tokens,',')){
+				} elseif($type->is_fixed_point() && match_token($tokens,',')){
 					$coldesc['datatype']['decimals'] = $pop();
 				}
-			} elseif(isset($type_default_length[$typename])){
-				$coldesc['datatype']['length'] = $type_default_length[$typename];
+			} else {
+				$size = $type->default_size();
+				if(isset($size)){
+					$coldesc['datatype'][$type->size_name()] = $size;
+				}
 			}
-			
-		} elseif(in_array($type, $type_timeywimey) && match_token($tokens,'(')){
+		} elseif($type->has_seconds() && match_token($tokens,'(')){
 			$coldesc['datatype']['fsp'] = $pop();
 			$close_paren = true;
-		} elseif(in_array($type, $type_enumy)){
+		} elseif($type->is_enum()){
 			if($e = $expect('(')) return $e;
-			$coldesc['datatype']['values'] = [];
+			$values = [];
 			do {
-				$coldesc['datatype']['values'][] = $pop();
+				$values[] = $pop();
 			} while (match_token($tokens,','));
+			$coldesc['datatype']['values'] = $values;
 			$close_paren = true;
-		} elseif($type === 'YEAR'){
+		} elseif($type === \SQLType::Year){
 			if(match_token($tokens,'(')){
 				if($e = $expect('4')) return $e;
 				if($e = $expect(')')) return $e;
@@ -216,12 +210,12 @@ function statement_table($stmt){
 		}
 		if($close_paren && $e = $expect(')')) return $e;
 
-		if(in_array($type, $type_inty)){
+		if($type->is_numeric()){
 			if(match_token($tokens,'UNSIGNED')) $coldesc['datatype']['unsigned'] = true;
 			elseif(match_token($tokens,'SIGNED')) $coldesc['datatype']['unsigned'] = false;
 			else $coldesc['datatype']['unsigned'] = false;
 			if(match_token($tokens,'ZEROFILL')) $coldesc['datatype']['zerofill'] = true;
-		} elseif(in_array($type, $type_stringy)){
+		} elseif($type->is_string()){
 			if(match_token($tokens,'CHARACTER')){
 				if($e = $expect('SET')) return $e;
 				$coldesc['datatype']['character set'] = $pop();
@@ -238,6 +232,17 @@ function statement_table($stmt){
 			$coldesc['nullity'] = 'NULL';
 		} else {
 			$coldesc['nullity'] = '';
+		}
+	};
+
+	$check_constraint = function(&$coldesc) use (&$tokens, $expect, $paren_expression){
+		$check = ['expression'=>''];
+		if(match_token($tokens, 'CONSTAINT')){
+			if($e = $identifier($check['constraint'])) return $e;
+		}
+		if(match_token($tokens, 'CHECK')){
+			$coldesc['check'] = $check;
+			if($e = $paren_expression($coldesc['check']['expression'])) return $e;
 		}
 	};
 
@@ -309,7 +314,7 @@ function statement_table($stmt){
 
 	$last_column = '#FIRST';
 	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type, $index_reference,
-			$optional_index_name, $optional_reference_option, $data_type, $nullity, $fail, $pop, $type_stringy, &$last_column){
+			$optional_index_name, $optional_reference_option, $data_type, $nullity, $paren_expression, $check_constraint, $fail, $pop, &$last_column){
 		$coldesc = [];
 		$is_unique = null;
 		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT','FOREIGN','CONSTRAINT'])){
@@ -355,20 +360,24 @@ function statement_table($stmt){
 			if(match_token($tokens,'DEFAULT')){
 				$coldesc['default'] = $pop();
 				if(current($tokens) == '('){
-					while(current($tokens)!= ')'){
-						$coldesc['default'] .= $pop();
-					}
-					$coldesc['default'] .= $pop();
+					if($e = $paren_expression($coldesc['default'])) return $e;
 				}
 				$len = strlen($coldesc['default']);
-				$is_stringy = in_array($coldesc['datatype']['name'],$type_stringy);
-				if(!$is_stringy && $coldesc['default'][0]=="'" && $coldesc['default'][$len-1]=="'"){
+				if(!$coldesc['datatype']->accepts_string_literal() && $coldesc['default'][0]=="'" && $coldesc['default'][$len-1]=="'"){
 					$coldesc['default'] = substr($coldesc['default'], 1, -1);
+				}
+				if($coldesc['datatype']->can_default_current() && match_token($tokens,'ON')){
+					if($e = $expect('UPDATE')) return $e;
+					$coldesc['on_update'] = $val = $pop();
+					if(current($tokens) == '('){
+						if($e = $paren_expression($coldesc['on_update'])) return $e;
+					}
 				}
 			}
 			
 			if(match_token($tokens,'AUTO_INCREMENT')) $coldesc['auto_increment'] = true;
 			if(match_token($tokens,'COMMENT')) $coldesc['comment'] = $pop();
+			if($e = $check_constraint($coldesc)) return $e;
 
 			$coldesc['after'] = $last_column;
 			$last_column = $coldesc['name'];
@@ -430,40 +439,46 @@ function statement_table($stmt){
 	$table_option_tokens[] = 'DEFAULT';
 	$table_option_tokens[] = 'CHARACTER';
 
-	$token = strtoupper(current($tokens));
-	while(in_array($token, $table_option_tokens)){
-		if($token == 'DEFAULT'){
-			$token = strtoupper(next($tokens));
-			next($tokens);
-			if($token == 'COLLATE') $key = 'COLLATE';
-			elseif($token == 'CHARSET') $key = 'CHARSET';
-			elseif($token == 'CHARACTER'){
+	$token = current($tokens);
+	if($token === false){
+		$desc['table_options'] = [];
+	} else {
+		$token = strtoupper($token);
+		while(in_array($token, $table_option_tokens)){
+			if($token == 'DEFAULT'){
+				$token = strtoupper(next($tokens));
+				next($tokens);
+				if($token == 'COLLATE') $key = 'COLLATE';
+				elseif($token == 'CHARSET') $key = 'CHARSET';
+				elseif($token == 'CHARACTER'){
+					if($e = $expect('SET')) return $e;
+					$key = 'CHARACTER SET';
+				} else {
+					return $fail("expected: COLLATE, CHARACTER SET or CHARSET, found [$token]");
+				}
+			} elseif($token == 'CHARACTER'){
 				if($e = $expect('SET')) return $e;
-				$key = 'CHARACTER SET';
+				$key = 'CHARSET';
 			} else {
-				return $fail("expected: COLLATE, CHARACTER SET or CHARSET, found [$token]");
+				$key = strtoupper($token);
+				next($tokens);
 			}
-		} elseif($token == 'CHARACTER'){
-			if($e = $expect('SET')) return $e;
-			$key = 'CHARSET';
-		} else {
-			$key = strtoupper($token);
-			next($tokens);
-		}
-		if(!isset($table_options[$key])) return $fail("unknown table option: $key");
-		if(isset($desc['table_options'][$key])) return $fail("duplicate table option: $key");
-		match_token($tokens, '=');
-		if($table_options[$key] === true){
-			$value = current($tokens);
-			next($tokens);
-		} else {
-			$value = match_token($tokens, $table_options[$key]);
-			if($value === false) return $fail("Invalid value for table option [$key]");
-		}
-		$desc['table_options'][$key] = $value;
+			if(!isset($table_options[$key])) return $fail("unknown table option: $key");
+			if(isset($desc['table_options'][$key])) return $fail("duplicate table option: $key");
+			match_token($tokens, '=');
+			if($table_options[$key] === true){
+				$value = current($tokens);
+				next($tokens);
+			} else {
+				$value = match_token($tokens, $table_options[$key]);
+				if($value === false) return $fail("Invalid value for table option [$key]");
+			}
+			$desc['table_options'][$key] = $value;
 
-		match_token($tokens, ',');
-		$token = strtoupper(current($tokens));
+			match_token($tokens, ',');
+			$token = current($tokens);
+			if($token !== false) $token = strtoupper($token);
+		}
 	}
 
 	return $desc;
@@ -718,8 +733,9 @@ function statement_user($stmt){
 }
 
 // private; shouldn't be used outside this namespace
-function match_token(&$tokens, $match, $casesensitive = false){
+function match_token(&$tokens, string|array $match, bool $casesensitive = false){
 	$token = current($tokens);
+	if($token === false) return false;
 	
 	if(is_array($match)){
 		foreach($match as $string){
@@ -736,5 +752,17 @@ function match_token(&$tokens, $match, $casesensitive = false){
 		} else {
 			return false;
 		}
+	}
+}
+
+function match_type(&$tokens){
+	$token = current($tokens);
+	if($token === false) return false;
+	$type = \SQLType::tryFrom(strtoupper($token));
+	if(isset($type)){
+		next($tokens);
+		return $type;
+	} else {
+		return false;
 	}
 }

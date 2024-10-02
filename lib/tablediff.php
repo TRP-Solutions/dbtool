@@ -3,6 +3,8 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
 require_once __DIR__."/permissiondiff.php";
 require_once __DIR__."/definitiondiff.php";
 require_once __DIR__."/userdiff.php";

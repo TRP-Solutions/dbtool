@@ -3,6 +3,9 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
+require_once __DIR__.'/sqltype.php';
 class Format {
 	public static function prettify_create_table($sql){
 		$result = '';
@@ -169,11 +172,16 @@ class Format {
 	public static function column_description_to_A($old_col){
 		$new_col = [
 			'colname'=>$old_col['name'],
-			'nullable'=>$old_col['nullity'] == 'NOT NULL' ? 'NO' : 'YES',
-			'data_type'=>$old_col['datatype']['name']
+			'data_type'=>new DataTypeNameProxy($old_col['datatype'])
 		];
+		$new_col['nullable'] = match($old_col['nullity']){
+			'NULL' => 'YES',
+			'NOT NULL' => 'NO',
+			default => $old_col['datatype']->is_nullable_by_default() ? 'YES' : 'NO'
+		};
 		if(isset($old_col['default'])) $new_col['default'] = $old_col['default'];
 		elseif($new_col['nullable']=='YES') $new_col['default'] = 'NULL';
+		if(isset($old_col['on_update'])) $new_col['on_update'] = $old_col['on_update'];
 		if(isset($old_col['datatype']['length'])) $new_col['length'] = $old_col['datatype']['length'];
 		if(isset($old_col['datatype']['char_max_length'])) $new_col['char_max_length'] = $old_col['datatype']['char_max_length'];
 		if(isset($old_col['datatype']['precision'])) $new_col['num_precision'] = $old_col['datatype']['precision'];
@@ -185,7 +193,12 @@ class Format {
 		if(isset($old_col['datatype']['zerofill'])) $new_col['zerofill'] = $old_col['datatype']['zerofill'] ? 'YES' : 'NO';
 		if(isset($old_col['datatype']['values'])) $new_col['enum_values'] = implode(', ',$old_col['datatype']['values']);
 
-		$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], true);
+		if(is_a($old_col['datatype'], '\Datatype')){
+			$new_col['type'] = $old_col['datatype']->string_with_attribute();
+		} else {
+			$new_col['type'] = \Parser\encode_datatype($old_col['datatype'], true);
+		}
+		
 
 		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
 		if(isset($old_col['comment'])){
@@ -205,6 +218,7 @@ class Format {
 		$def = "`$col[colname]` $col[type]";
 		if($col['nullable'] == 'NO') $def .= ' NOT NULL';
 		if(isset($col['default'])) $def .= " DEFAULT $col[default]";
+		if(isset($col['on_update'])) $def .= " ON UPDATE $col[on_update]";
 		if(isset($col['extra']) && $col['extra'] == 'auto_increment') $def .= ' AUTO_INCREMENT';
 		if(isset($col['comment'])) $def .= " COMMENT '$col[comment]'";
 		return $def;

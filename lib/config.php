@@ -3,9 +3,11 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
 class Config {
 	private static $instance;
-	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','statement','source'];
+	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','statement','source','guard'];
 	const FORCE_ARRAY = ['files','statement'];
 	const STORE_IN_SESSION = [];
 

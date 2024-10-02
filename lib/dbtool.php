@@ -3,6 +3,8 @@
 DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
+
+declare(strict_types=1);
 require_once __DIR__.'/config.php';
 require_once __DIR__.'/tablediff.php';
 require_once __DIR__.'/source.php';
@@ -22,7 +24,7 @@ class DBTool {
 		}
 		if(!Source::is_list_of($sources)){
 			if(!is_a($sources, 'Source')){
-				$sources = Source::from($sources, $options->get('source'));
+				$sources = Source::from($sources, $options->read('source'));
 			}
 			$sources = [$sources];
 		}

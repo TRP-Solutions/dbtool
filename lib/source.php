@@ -4,6 +4,7 @@ DBTool is licensed under the Apache License 2.0 license
 https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 */
 
+declare(strict_types=1);
 class Source {
 	static public function from($sql, $name = null){
 		if(is_a($sql,'Source')){

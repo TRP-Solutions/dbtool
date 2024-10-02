@@ -164,7 +164,7 @@ class Page {
 	}
 
 	private static function error_message($parent, $message, $class = 'alert-danger'){
-		$parent->el('div',['class'=>"alert $class",'role'=>'alert'])->te($message, HEAL_TEXT_NL2BR);
+		$parent->el('pre',['class'=>"alert $class",'role'=>'alert'])->te($message, HEAL_TEXT_NL2BR);
 	}
 
 	public static function itemize($array, $header = null, $important = false){
