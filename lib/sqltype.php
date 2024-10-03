@@ -12,7 +12,7 @@ class DataTypeNameProxy implements jsonSerializable {
 		return $this->datatype->normalized_name();
 	}
 
-	public function jsonSerialize(){
+	public function jsonSerialize(): mixed {
 		return (string) $this;
 	}
 }
@@ -48,10 +48,10 @@ class DataType implements ArrayAccess, jsonSerializable {
 
 	protected function __construct(public readonly SQLType $type){}
 
-	public function offsetExists($offset): bool {
+	public function offsetExists(mixed $offset): bool {
 		return property_exists($this, $offset) && isset($this->$offset) || $offset == static::SIZE && isset($this->size);
 	}
-	public function offsetGet($offset) {
+	public function offsetGet(mixed $offset): mixed {
 		if($offset == 'name'){
 			return $this->normalized_name();
 		} elseif($offset == static::SIZE){
@@ -62,14 +62,14 @@ class DataType implements ArrayAccess, jsonSerializable {
 			throw new \Exception("invalid offset on {$this->type->value} (".static::class."): '$offset'");
 		}
 	}
-	public function offsetSet($offset, $value) {
+	public function offsetSet(mixed $offset, mixed $value): void {
 		if($offset == static::SIZE || $offset == 'size'){
 			$this->size = intval($value);
 		} else {
 			throw new \Exception("invalid offset on {$this->type->value} (".static::class."): '$offset'");
 		}
 	}
-	public function offsetUnset($offset) {
+	public function offsetUnset(mixed $offset): void {
 
 	}
 
@@ -111,7 +111,7 @@ class DataType implements ArrayAccess, jsonSerializable {
 		return $array;
 	}
 
-	public function jsonSerialize(){
+	public function jsonSerialize(): mixed {
 		return $this->to_array();
 	}
 
@@ -126,14 +126,14 @@ class DataTypeString extends DataType {
 	public readonly string $collate;
 
 	
-	public function offsetGet($offset) {
+	public function offsetGet(mixed $offset): mixed {
 		if($offset == 'character set'){
 			return $this->character_set ?? null;
 		} else {
 			return parent::offsetGet($offset);
 		}
 	}
-	public function offsetSet($offset, $value) {
+	public function offsetSet(mixed $offset, mixed $value): void {
 		match($offset){
 			'character set' => $this->character_set = $value,
 			'collate' => $this->collate = $value,
@@ -141,7 +141,7 @@ class DataTypeString extends DataType {
 		};
 	}
 
-	public function offsetExists($offset): bool {
+	public function offsetExists(mixed $offset): bool {
 		return $offset == 'character set' && isset($this->character_set) || parent::offsetExists($offset);
 	}
 
@@ -182,7 +182,7 @@ class DataTypeNumeric extends DataType {
 	protected readonly int $bitwidth;
 	protected $debug = false;
 
-	public function offsetSet($offset, $value) {
+	public function offsetSet(mixed $offset, mixed $value): void {
 		if($offset == 'signed'){
 			$this->signed   = (bool) $value;
 		} elseif($offset == 'unsigned'){
@@ -194,7 +194,7 @@ class DataTypeNumeric extends DataType {
 		}
 	}
 
-	public function offsetGet($offset) {
+	public function offsetGet(mixed $offset): mixed {
 		if($offset == 'unsigned'){
 			return !$this->signed;
 		} else {
@@ -202,7 +202,7 @@ class DataTypeNumeric extends DataType {
 		}
 	}
 
-	public function offsetExists($offset): bool {
+	public function offsetExists(mixed $offset): bool {
 		return $offset == 'unsigned' || parent::offsetExists($offset);
 	}
 	
@@ -248,7 +248,7 @@ class DataTypeNumericPoint extends DataTypeNumeric {
 	protected const SIZE = 'precision';
 	public readonly string $decimals;
 
-	public function offsetSet($offset, $value) {
+	public function offsetSet(mixed $offset, mixed $value): void {
 		match($offset){
 			'decimals' => $this->decimals = $value,
 			default => parent::offsetSet($offset, $value)
@@ -278,7 +278,7 @@ class DataTypeFixedPoint extends DataTypeNumericPoint {
 		return parent::is_lossless($other) && $this->is_fixed_point() && $other->is_fixed_point();
 	}
 
-	public function offsetGet($offset): mixed {
+	public function offsetGet(mixed $offset): mixed {
 		if($offset == 'decimals'){
 			return $this->decimals ?? 0;
 		} else {
@@ -286,7 +286,7 @@ class DataTypeFixedPoint extends DataTypeNumericPoint {
 		}
 	}
 
-	public function offsetExists($offset): bool {
+	public function offsetExists(mixed $offset): bool {
 		return match($offset){
 			'decimals' => true,
 			default => parent::offsetExists($offset)
@@ -301,7 +301,7 @@ class DataTypeFixedPoint extends DataTypeNumericPoint {
 class DataTypeEnum extends DataTypeString {
 	public readonly array $values;
 
-	public function offsetSet($offset, $value) {
+	public function offsetSet(mixed $offset, mixed $value): void {
 		match($offset){
 			'values' => $this->values = $value,
 			default => parent::offsetSet($offset, $value)

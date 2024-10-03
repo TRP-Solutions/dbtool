@@ -203,7 +203,7 @@ class Statement implements jsonSerializable {
 		return isset($key) ? $this->column_diff['t2'][$key] ?? null : $this->column_diff['t2'] ?? null;
 	}
 
-	public function jsonSerialize(){
+	public function jsonSerialize(): mixed {
 		return (string) $this;
 	}
 }
