@@ -7,7 +7,7 @@ https://github.com/TRP-Solutions/dbtool/blob/master/LICENSE
 declare(strict_types=1);
 class Config {
 	private static $instance;
-	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','statement','source','guard'];
+	const ALLOWED_KEYS = ['host','user','password','variables','action','files','database','statement','source','ignore-dataloss'];
 	const FORCE_ARRAY = ['files','statement'];
 	const STORE_IN_SESSION = [];
 

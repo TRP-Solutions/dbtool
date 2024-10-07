@@ -39,7 +39,7 @@ class Statement implements jsonSerializable {
 		private $column_diff = null
 	){
 		$this->table_identifier = isset($database) ? "`$database`.`$table`" : `$table`;
-		$this->use_guards = (bool) \Config::get('guard');
+		$this->use_guards = !\Config::get('ignore-dataloss');
 		if(!$this->use_guards || $type == StatementType::AddColumn || $this->is_safe_modify()){
 			$this->guard_state = StatementGuard::Safe;
 		}
@@ -53,8 +53,6 @@ class Statement implements jsonSerializable {
 
 	public function execute(mysqli $mysqli): mysqli_result|bool{
 		if($this->is_safe($mysqli)){
-			//$this->guard_warning = "Looks safe";
-			//return false;
 			return $mysqli->query($this->toSQL());
 		} else {
 			return false;
