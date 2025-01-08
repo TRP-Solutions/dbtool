@@ -16,12 +16,18 @@ if(file_exists("config.php")){
 }
 require_once "page.php";
 
+$debug_data = [];
+function debug_collect(...$data){
+	global $debug_data;
+	$debug_data[] = json_encode($data);
+}
 
 function debug(...$data){
 	header('Content-type:application/json');
 	echo json_encode($data);
 	exit;
-}
+ }
+
 
 session_start();
 
@@ -66,9 +72,15 @@ if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
 	load_and_run($config, dirname($path));
 }
 
-Page::flush();
+abort();
 
 function abort(){
+	global $debug_data;
+	if(!empty($debug_data)){
+		header('Content-type:application/json');
+		echo '['.implode(",\n",$debug_data).']';
+		exit;
+	}
 	Page::flush();
 	exit;
 }

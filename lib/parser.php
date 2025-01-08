@@ -79,7 +79,7 @@ function statement_insert($stmt){
 
 // private; shouldn't be used outside this namespace
 function statement_table($stmt){
-	$tokens = preg_split('/(\'[^\']*\')|(`[^`]+`)|([.,()=@])|[\s]+/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+	$tokens = preg_split('/(\'(?:[^\']|\\.)*\')|(`[^`]+`)|([.,()=@])|([\s]+)/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 
 	$fail = function($msg) use (&$desc, &$tokens){
 		$desc['error'] = $msg;
@@ -91,18 +91,28 @@ function statement_table($stmt){
 		}
 		return $desc;
 	};
-	$expect = function($token) use (&$tokens, $fail){
+	$expect = function($token, $reason = null) use (&$tokens, $fail){
 		if(match_token($tokens, $token)){
 			return false;
 		} else {
-			$prev = implode(' ',array_reverse([prev($tokens),prev($tokens),prev($tokens)])).' ';
-			next($tokens);next($tokens);
+			if(current($tokens) === false){
+				end($tokens);
+			}
+			$prev = implode('',array_reverse([prev($tokens),prev($tokens),prev($tokens),prev($tokens),prev($tokens)]));
+			$prev = str_replace("\n","\n  ",$prev);
+			next($tokens);next($tokens);next($tokens);next($tokens);
 			$current = next($tokens);
-			$next = [next($tokens),next($tokens),next($tokens)];
-			$context = $prev.$current.' '.implode(' ',$next);
+			$next = implode('',[next($tokens),next($tokens),next($tokens),next($tokens),next($tokens)]);
+			$context = $prev.$current.$next;
+			$prev_newline = strrpos($prev, "\n");
+			$prev_len = strlen($prev) - ($prev_newline === false ? 0 : $prev_newline+3);
+			$cur_len = $current ? strlen($current) : 1;
 			$msg = "\n  expected ".(is_array($token) ? implode(', ', $token) : $token)." in";
 			$msg .= "\n  ".$context;
-			$msg .= "\n  ".str_repeat(' ', strlen($prev)).str_repeat('^', strlen($current));
+			$msg .= "\n  ".str_repeat(' ', $prev_len).str_repeat('^', $cur_len);
+			if(!empty($reason)){
+				$msg .= "\n  ($reason)";
+			}
 			return $fail($msg);
 		}
 	};
@@ -115,7 +125,7 @@ function statement_table($stmt){
 		return false;
 	};
 	$pop = function() use (&$tokens){
-		$token = current($tokens);
+		$token = current_token($tokens);
 		next($tokens);
 		return $token;
 	};
@@ -134,16 +144,16 @@ function statement_table($stmt){
 		return $fail('expected: valid identifier [ '.$token.' ]');
 	};
 	$paren_expression = function(&$value) use (&$tokens, $pop, $fail) {
-		if(current($tokens) == '('){
+		if(current_token($tokens) == '('){
 			$paren_level = -1;
 			$expr_stack = [[]];
-			while(current($tokens)){
-				$token = $pop();
+			while($token = current($tokens)){
+				next($tokens);
 				if($token == '('){
 					$paren_level += 1;
 					$expr_stack[$paren_level] = [];
 				} elseif($token == ')'){
-					$expr = '('.implode(' ',$expr_stack[$paren_level]).')';
+					$expr = '('.implode('',$expr_stack[$paren_level]).')';
 					$paren_level -= 1;
 					if($paren_level == -1){
 						$value .= $expr;
@@ -159,6 +169,28 @@ function statement_table($stmt){
 		return $fail('expected: ( expression )');
 	};
 
+	$expression = function(&$value, $strip_string_literal = false) use (&$tokens, $pop, $paren_expression) {
+		$cur_token = current($tokens);
+		if(current_token($tokens) != '('){
+			$cur_token1 = current($tokens);
+			$expr = $pop();
+			$string_literal_regexp = '/\'(?:[^\']|\\.)*\'/';
+			if(preg_match($string_literal_regexp, $expr)){
+				if($strip_string_literal){
+					$value = substr($expr, 1, -1);
+				} else {
+					$value = $expr;
+				}
+				return;
+			} else {
+				$value = mb_strtoupper($expr);
+			}
+		}
+		if(current_token($tokens) == '('){
+			if($e = $paren_expression($value)) return $e;
+		}
+	};
+
 	$data_type = function(&$coldesc) use (&$tokens, $pop, $expect, $fail){
 		$coldesc['datatype'] = [];
 		$close_paren = false;
@@ -172,7 +204,7 @@ function statement_table($stmt){
 		}
 
 		if($type->size_required()){
-			if($e = $expect('(')) return $e;
+			if($e = $expect('(', 'size required')) return $e;
 			$coldesc['datatype'][$type->size_name()] = $pop();
 			$close_paren = true;
 		} elseif($type->size_optional()){
@@ -195,7 +227,7 @@ function statement_table($stmt){
 			$coldesc['datatype']['fsp'] = $pop();
 			$close_paren = true;
 		} elseif($type->is_enum()){
-			if($e = $expect('(')) return $e;
+			if($e = $expect('(', 'enum values')) return $e;
 			$values = [];
 			do {
 				$values[] = $pop();
@@ -235,6 +267,23 @@ function statement_table($stmt){
 		}
 	};
 
+	$default = function(&$coldesc) use (&$tokens, $expression){
+		if(match_token($tokens,'DEFAULT')){
+			$strip_string_literal = !$coldesc['datatype']->accepts_string_literal();
+			if($e = $expression($coldesc['default'], $strip_string_literal)) return $e;
+			if($coldesc['default'] === '0'){
+				$coldesc['default'] = $coldesc['datatype']->zero_value() ?? $coldesc['default'];
+			}
+		}
+	};
+
+	$on_update = function(&$coldesc) use (&$tokens, $expect, $expression){
+		if($coldesc['datatype']->can_default_current() && match_token($tokens,'ON')){
+			if($e = $expect('UPDATE')) return $e;
+			if($e = $expression($coldesc['on_update'])) return $e;
+		}
+	};
+
 	$check_constraint = function(&$coldesc) use (&$tokens, $expect, $paren_expression){
 		$check = ['expression'=>''];
 		if(match_token($tokens, 'CONSTAINT')){
@@ -255,23 +304,23 @@ function statement_table($stmt){
 		}
 	};
 
-	$index_columns = function(&$value) use (&$tokens, $expect, $identifier, $pop){
-		if($e = $expect('(')) return $e;
+	$index_columns = function(&$value, $reason = 'index columns') use (&$tokens, $expect, $identifier, $pop){
+		if($e = $expect('(',$reason)) return $e;
 		do {
 			$col = [];
 			if($e = $identifier($col['name'])) return $e;
 			if(match_token($tokens,'(')){
 				$col['size'] = $pop();
-				if($e = $expect(')')) return $e;
+				if($e = $expect(')',$reason)) return $e;
 			}
 			$col['sort'] = match_token($tokens,['ASC','DESC']);
 			$value[] = $col;
 		} while (match_token($tokens, ','));
-		if($e = $expect(')')) return $e;
+		if($e = $expect(')',$reason)) return $e;
 	};
 
-	$index_reference = function(&$coldesc) use (&$tokens, $expect, $identifier, $pop, $index_columns){
-		if($e = $expect('REFERENCES')) return $e;
+	$index_reference = function(&$coldesc, $reason = 'index reference') use (&$tokens, $expect, $identifier, $pop, $index_columns){
+		if($e = $expect('REFERENCES',$reason)) return $e;
 		if($e = $identifier($coldesc['index_reference_table'])) return $e;
 		if(match_token($tokens, '.')){
 			$coldesc['index_reference_database'] = $coldesc['index_reference_table'];
@@ -280,11 +329,11 @@ function statement_table($stmt){
 		} else {
 			$coldesc['index_reference_table_quoted'] = '`'.$coldesc['index_reference_table'].'`';
 		}
-		if($e = $index_columns($coldesc['index_reference_columns'])) return $e;
+		if($e = $index_columns($coldesc['index_reference_columns'], $reason)) return $e;
 	};
 
 	$optional_index_name = function(&$value) use (&$tokens, $identifier){
-		$token = current($tokens);
+		$token = current_token($tokens);
 		if($token != '(' && strtoupper($token) != 'USING'){
 			if($e = $identifier($value)) return $e;
 		}
@@ -314,7 +363,7 @@ function statement_table($stmt){
 
 	$last_column = '#FIRST';
 	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type, $index_reference,
-			$optional_index_name, $optional_reference_option, $data_type, $nullity, $paren_expression, $check_constraint, $fail, $pop, &$last_column){
+			$optional_index_name, $optional_reference_option, $data_type, $nullity, $default, $on_update, $check_constraint, $fail, $pop, &$last_column){
 		$coldesc = [];
 		$is_unique = null;
 		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT','FOREIGN','CONSTRAINT'])){
@@ -346,7 +395,7 @@ function statement_table($stmt){
 				$optional_index_name($coldesc['name']);
 			}
 			if($e = $index_type($coldesc)) return $e;
-			if($e = $index_columns($coldesc['index_columns'])) return $e;
+			if($e = $index_columns($coldesc['index_columns'], 'index columns for '.$coldesc['index_type'].' `'.($coldesc['name']??'?').'`')) return $e;
 			if($token == 'FOREIGN'){
 				if($e = $index_reference($coldesc)) return $e;
 				if($e = $optional_reference_option($coldesc, 'index_on_delete','DELETE')) return $e;
@@ -357,24 +406,8 @@ function statement_table($stmt){
 			if($e = $identifier($coldesc['name'])) return $e;
 			if($e = $data_type($coldesc)) return $e;
 			if($e = $nullity($coldesc)) return $e;
-			if(match_token($tokens,'DEFAULT')){
-				$coldesc['default'] = $pop();
-				if(current($tokens) == '('){
-					if($e = $paren_expression($coldesc['default'])) return $e;
-				}
-				$len = strlen($coldesc['default']);
-				if(!$coldesc['datatype']->accepts_string_literal() && $coldesc['default'][0]=="'" && $coldesc['default'][$len-1]=="'"){
-					$coldesc['default'] = substr($coldesc['default'], 1, -1);
-				}
-				if($coldesc['datatype']->can_default_current() && match_token($tokens,'ON')){
-					if($e = $expect('UPDATE')) return $e;
-					$coldesc['on_update'] = $val = $pop();
-					if(current($tokens) == '('){
-						if($e = $paren_expression($coldesc['on_update'])) return $e;
-					}
-				}
-			}
-			
+			if($e = $default($coldesc)) return $e;
+			if($e = $on_update($coldesc)) return $e;
 			if(match_token($tokens,'AUTO_INCREMENT')) $coldesc['auto_increment'] = true;
 			if(match_token($tokens,'COMMENT')) $coldesc['comment'] = $pop();
 			if($e = $check_constraint($coldesc)) return $e;
@@ -403,7 +436,7 @@ function statement_table($stmt){
 		if($e = $identifier($desc['name'])) return $e;
 	}
 
-	if($e = $expect('(')) return $e;
+	if($e = $expect('(','table expression')) return $e;
 	do if($e = $column()) return $e;
 	while (match_token($tokens, ','));
 	if($e = $expect(')')) return $e;
@@ -439,14 +472,15 @@ function statement_table($stmt){
 	$table_option_tokens[] = 'DEFAULT';
 	$table_option_tokens[] = 'CHARACTER';
 
-	$token = current($tokens);
+	$token = current_token($tokens);
 	if($token === false){
 		$desc['table_options'] = [];
 	} else {
 		$token = strtoupper($token);
 		while(in_array($token, $table_option_tokens)){
 			if($token == 'DEFAULT'){
-				$token = strtoupper(next($tokens));
+				next($tokens);
+				$token = strtoupper(current_token($tokens));
 				next($tokens);
 				if($token == 'COLLATE') $key = 'COLLATE';
 				elseif($token == 'CHARSET') $key = 'CHARSET';
@@ -467,7 +501,7 @@ function statement_table($stmt){
 			if(isset($desc['table_options'][$key])) return $fail("duplicate table option: $key");
 			match_token($tokens, '=');
 			if($table_options[$key] === true){
-				$value = current($tokens);
+				$value = current_token($tokens);
 				next($tokens);
 			} else {
 				$value = match_token($tokens, $table_options[$key]);
@@ -476,7 +510,7 @@ function statement_table($stmt){
 			$desc['table_options'][$key] = $value;
 
 			match_token($tokens, ',');
-			$token = current($tokens);
+			$token = current_token($tokens);
 			if($token !== false) $token = strtoupper($token);
 		}
 	}
@@ -732,9 +766,18 @@ function statement_user($stmt){
 	return $desc;
 }
 
+function current_token(&$tokens){
+	$token = current($tokens);
+	if($token === false) return false;
+	while(is_string($token) && preg_match('/^\s+$/', $token)){
+		$token = next($tokens);
+	}
+	return $token;
+}
+
 // private; shouldn't be used outside this namespace
 function match_token(&$tokens, string|array $match, bool $casesensitive = false){
-	$token = current($tokens);
+	$token = current_token($tokens);
 	if($token === false) return false;
 	
 	if(is_array($match)){
@@ -756,8 +799,11 @@ function match_token(&$tokens, string|array $match, bool $casesensitive = false)
 }
 
 function match_type(&$tokens){
-	$token = current($tokens);
+	$token = current_token($tokens);
 	if($token === false) return false;
+	while(is_string($token) && preg_match('/\s+/', $token)){
+		$token = next($tokens);
+	}
 	$type = \SQLType::tryFrom(strtoupper($token));
 	if(isset($type)){
 		next($tokens);

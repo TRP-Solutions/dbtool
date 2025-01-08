@@ -128,7 +128,7 @@ class Format {
 				];
 				foreach($row as $key => $value){
 					if($key == 'colname') $key = 'column_name';
-					if(!empty($value)){
+					if(!empty($value) || $value === '0'){
 						$rowdata[$key] = $value;
 					}
 				}

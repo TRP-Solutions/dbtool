@@ -69,6 +69,10 @@ class Statement implements jsonSerializable {
 
 	private function release_guard(mysqli $mysqli): bool {
 		$guard = $this->build_guard_condition();
+		if($guard === ''){
+			$this->guard_state = StatementGuard::Safe;
+			return true;
+		}
 		$query = $mysqli->query($guard);
 		if($mysqli->errno || $query === false || $query->num_rows == 0){
 			throw new \Exception('Error while testing guard condition.');

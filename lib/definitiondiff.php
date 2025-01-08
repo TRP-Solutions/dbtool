@@ -304,8 +304,8 @@ class Definitiondiff {
 			}
 			if($col_a[$key] != $col_b[$key]) {
 				if(
-					$key == 'default' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
-					|| $key == 'on_update' && self::is_synonym($col_a[$key],$col_b[$key],self::$default_synonyms)
+					$key == 'default' && self::compare_default($col_a[$key],$col_b[$key])
+					|| $key == 'on_update' && self::compare_default($col_a[$key],$col_b[$key])
 					|| $key == 'data_type' && self::compare_type($col_a[$key],$col_b[$key])
 					|| $key == 'char_set' && self::is_synonym($col_a[$key],$col_b[$key],self::$charset_synonyms)
 					|| $key == 'collation' && self::compare_collation($col_a[$key],$col_b[$key])
@@ -358,7 +358,7 @@ class Definitiondiff {
 		['utf8','utf8mb3']
 	];
 	private static $default_synonyms = [
-		['current_timestamp','current_timestamp()','now()']
+		['current_timestamp','current_timestamp()','now()','localtime', 'localtime()', 'localtimestamp', 'localtimestamp()']
 	];
 	private static function is_synonym($a, $b, $synonym_lists){
 		$a = mb_strtolower($a);
@@ -386,6 +386,15 @@ class Definitiondiff {
 		}
 		// neither term was found in the synonym lists
 		return false;
+	}
+	private static function compare_default($a, $b){
+		while(str_starts_with($a,'(') && str_ends_with($a,')')){
+			$a = substr($a, 1, -1);
+		}
+		while(str_starts_with($b,'(') && str_ends_with($b,')')){
+			$b = substr($b, 1, -1);
+		}
+		return $a == $b || self::is_synonym($a,$b,self::$default_synonyms);
 	}
 	private static function compare_type($a, $b){
 		$pattern = "/\([0-9 ]+\)/";
