@@ -168,7 +168,7 @@ class Statement implements jsonSerializable {
 
 	private function implicit_default(){
 		$type = $this->t1('data_type_obj');
-		if($type->is_int()){
+		if($type->is_numeric()){
 			return "0";
 		} elseif($type->is_text()) {
 			return "''";
