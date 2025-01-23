@@ -184,6 +184,8 @@ class Statement implements jsonSerializable {
 			return "'0000-00-00 00:00.00'";
 		} elseif($type == \SQLType::Year){
 			return "'00:00.00'";
+		} else {
+			return $type->zero_value();
 		}
 	}
 

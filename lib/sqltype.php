@@ -454,6 +454,7 @@ enum SQLType: string {
 	/*** Other types ***/
 	case Bit = 'BIT';
 	case Json = 'JSON';
+	case Uuid = 'UUID';
 
 	/*** End of types ***/
 
@@ -529,6 +530,7 @@ enum SQLType: string {
 	public function zero_value(){
 		return match($this){
 			self::Timestamp => "'0000-00-00 00:00:00'",
+			self::Uuid => "'00000000-0000-0000-0000-000000000000'",
 			default => null
 		};
 	}
