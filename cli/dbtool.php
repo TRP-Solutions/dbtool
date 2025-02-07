@@ -79,7 +79,12 @@ if($config['user']===false){
 }
 if($config['password'] === true) $config['password'] = ask_for_password();
 
-run_config($config, $configdir);
+try {
+	run_config($config, $configdir);
+} catch(\Exception $e){
+	fail("Error: ".$e->getMessage(), 3);
+}
+
 exit;
 
 function help(){

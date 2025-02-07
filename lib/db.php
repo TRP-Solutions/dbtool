@@ -104,9 +104,11 @@ class DB {
 
 	private function __construct(){
 		$host = Config::get('host');
-		if(!isset($host)) $host = 'localhost';
+		if(!is_string($host)) $host = 'localhost';
 		$username = Config::get('user');
+		if(!is_string($username)) $username = null;
 		$password = Config::get('password');
+		if(!is_string($password)) $password = null;
 		if(isset($username) && isset($password)){
 			$error_level = error_reporting(0);
 			$mysqli = new mysqli($host, $username, $password);

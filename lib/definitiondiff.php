@@ -60,7 +60,11 @@ class Definitiondiff {
 			$active_database = $query->num_rows ? $query->fetch_array()[0] : null;
 			if($active_database == $db){
 				$query = DB::sql("SHOW TABLES");
-				self::$known_tables[$db] = array_map(function($row){return $row[0];}, $query->fetch_all());
+				if($query && $query->num_rows){
+					self::$known_tables[$db] = array_map(function($row){return $row[0];}, $query->fetch_all());
+				} else {
+					self::$known_tables[$db] = [];
+				}
 			} else {
 				self::$known_tables[$db] = [];
 			}
