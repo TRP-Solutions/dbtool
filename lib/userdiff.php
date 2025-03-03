@@ -40,7 +40,8 @@ class Userdiff {
 	private function get_db_stmt(){
 		if(!$this->parsed_user){
 			try {
-				$query = DB::sql("SHOW CREATE USER $this->name");
+				$mysqli = DB::get();
+				$query = $mysqli->query("SHOW CREATE USER $this->name");
 			} catch (Exception $e){
 				$query = false;
 			}

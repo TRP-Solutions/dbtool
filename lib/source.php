@@ -88,18 +88,49 @@ class Source {
 	}
 
 	static private function parse_line($line){
-		$line = explode('--', $line, 2)[0];
-		$line = explode('#', $line, 2)[0];
-
-		$in_single = false;
-		$in_double = false;
+		$quote_delimiter = ['\'','"','`'];
+		$quote_opener = null;
+		$in_quote = false;
+		$prev_char = null;
+		$rest_is_comment = false;
 		$len = strlen($line);
 		for($i = 0; $i < $len; $i++){
-			if($line[$i] == '\'' && !$in_double) $in_single = !$in_single;
-			elseif($line[$i] == '"' && !$in_single) $in_double = !$in_double;
-			elseif($line[$i] == ';' && !$in_single && !$in_double) break;
+			$char = $line[$i];
+			if($in_quote){
+				/*
+					The quoting character can be escaped with backslash in
+					strings, but not in identifiers. Including the quoting
+					character in an identifier requires writing the character
+					twice, which is odd, but doesn't interfere with this
+					method of detecting whether a symbol is inside a quote.
+				*/
+				if($char === $quote_opener && ($char === '`' || $prev_char !== '\\')){
+					$in_quote = false;
+				}
+			} elseif(in_array($char, $quote_delimiter)) {
+				$in_quote = true;
+				$quote_opener = $char;
+			} elseif($char == ';'){
+				break;
+			} elseif($char == '#'){
+				$rest_is_comment = true;
+				break;
+			} elseif($char == '-' && $prev_char == '-'){
+				/*
+					MySQL requires whitespace or a control character after the
+					double dash to accept it as a comment. This is not enforced
+					here, but might be a good addition in the future.
+				*/
+				$rest_is_comment = true;
+				$i -= 1;
+				break;
+			}
+			$prev_char = $char;
 		}
-		$result = ['str'=>substr($line, 0, $i), 'rest'=>substr($line, $i+1), 'end'=>isset($line[$i]) && $line[$i] == ';'];
-		return $result;
+		return [
+			'str'=>substr($line, 0, $i),
+			'rest'=>$rest_is_comment ? '' : substr($line, $i+1),
+			'end'=>isset($line[$i]) && $line[$i] == ';'
+		];
 	}
 }
