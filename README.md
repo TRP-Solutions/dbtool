@@ -29,3 +29,7 @@ Useful bash alias:
 ```
 alias dbtool='php /path/to/dbtool/cli/dbtool.php'
 ```
+## WEB
+```
+git submodule update --init web/lib/heal-document
+```
