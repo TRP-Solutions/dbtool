@@ -284,6 +284,18 @@ function statement_table($stmt){
 		}
 	};
 
+	$column_key = function(&$coldesc) use (&$tokens, $expect){
+		if(match_token($tokens,'UNIQUE')){
+			match_token($tokens,'KEY');
+			$coldesc['key'] = 'UNIQUE';
+		} elseif(match_token($tokens,'PRIMARY')){
+			if($e = $expect('KEY')) return $e;
+			$coldesc['key'] = 'PRIMARY KEY';
+		} elseif(match_token($tokens,'KEY')){
+			$coldesc['key'] = 'KEY';
+		}
+	};
+
 	$check_constraint = function(&$coldesc) use (&$tokens, $expect, $paren_expression){
 		$check = ['expression'=>''];
 		if(match_token($tokens, 'CONSTAINT')){
@@ -363,7 +375,7 @@ function statement_table($stmt){
 
 	$last_column = '#FIRST';
 	$column = function() use (&$tokens, &$desc, $expect, $identifier, $index_columns, $index_type, $index_reference,
-			$optional_index_name, $optional_reference_option, $data_type, $nullity, $default, $on_update, $check_constraint, $fail, $pop, &$last_column){
+			$optional_index_name, $optional_reference_option, $data_type, $nullity, $default, $on_update, $column_key, $check_constraint, $fail, $pop, &$last_column){
 		$coldesc = [];
 		$is_unique = null;
 		if($token = match_token($tokens, ['INDEX','KEY','UNIQUE','PRIMARY','FULLTEXT','FOREIGN','CONSTRAINT'])){
@@ -409,6 +421,7 @@ function statement_table($stmt){
 			if($e = $default($coldesc)) return $e;
 			if($e = $on_update($coldesc)) return $e;
 			if(match_token($tokens,'AUTO_INCREMENT')) $coldesc['auto_increment'] = true;
+			if($e = $column_key($coldesc)) return $e;
 			if(match_token($tokens,'COMMENT')) $coldesc['comment'] = $pop();
 			if($e = $check_constraint($coldesc)) return $e;
 

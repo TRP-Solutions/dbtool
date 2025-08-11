@@ -259,6 +259,16 @@ class Definitiondiff {
 	private static function organize_column($col, &$columns, &$keys){
 		if($col['type'] == 'column'){
 			$columns[$col['name']] = Format::column_description_to_A($col); //compatibility with web diffview
+			if(isset($col['key'])){
+				$keyname = $col['key'] == 'PRIMARY KEY' ? 'PRIMARY' : $col['name'];
+				$keycols = [\Parser\encode_index_column($col)];
+				$indexcols = [['name'=>$col['name'],'sort'=>false]];
+				$keys[$keyname] = match($col['key']){
+					'UNIQUE' => ['index_type'=>'unique','index_columns'=>$indexcols,'cols'=>$keycols,'defined_on_column'=>true],
+					'PRIMARY KEY' => ['index_type'=>'primary','index_columns'=>$indexcols,'cols'=>$keycols,'defined_on_column'=>true],
+					default => ['index_type'=>'','index_columns'=>$indexcols,'cols'=>$keycols,'defined_on_column'=>true]
+				};
+			}
 		} elseif($col['type'] == 'index'){
 			unset($col['type']); //compatibility with web diffview
 			$col['cols'] = array_map('\Parser\encode_index_column', $col['index_columns']);
@@ -283,6 +293,10 @@ class Definitiondiff {
 		foreach($keys as $key){
 			if($key == 'type'){
 				// 'type' field is kept around to generate the SQL statements
+				continue;
+			}
+			if($key == 'key'){
+				// 'key' field is handled in a special way to also match against indexes
 				continue;
 			}
 			if(!array_key_exists($key, (array)$col_a) || !array_key_exists($key, (array)$col_b)){
@@ -329,10 +343,13 @@ class Definitiondiff {
 		){
 			return true;
 		}
-		if(!isset($index_a) || !isset($index_b)) return false;
+		if(!isset($index_a) || !isset($index_b)){
+			return false;
+		}
 		$keys = array_unique(array_merge(array_keys($index_a), array_keys($index_b)));
 		foreach($keys as $key){
 			if($key == 'implicit') continue;
+			if($key == 'defined_on_column') continue;
 			if(!array_key_exists($key, $index_a) || !array_key_exists($key, $index_b)){
 				if((
 					$key == 'index_on_delete' || $key == 'index_on_update') && self::is_default($key, $index_a, $index_b, 'RESTRICT', 'RESTRICT')
@@ -505,7 +522,7 @@ class Definitiondiff {
 					$drop_keys[] = "ALTER TABLE `$database_name`.`$table_name` DROP KEY $keyname;";
 				}
 			}
-			if(isset($diff['t2']) && !($diff['t2']['implicit']??false)){
+			if(isset($diff['t2']) && !($diff['t2']['implicit']??false) && !($diff['t2']['defined_on_column']??false)){
 				$query = "ALTER TABLE `$database_name`.`$table_name` ADD ";
 				if($diff['t2']['index_type'] == 'unique') $query .= 'UNIQUE ';
 				elseif($diff['t2']['index_type'] == 'primary') $query .= 'PRIMARY ';

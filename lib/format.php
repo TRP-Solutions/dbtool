@@ -201,6 +201,7 @@ class Format {
 		
 
 		if(isset($old_col['auto_increment']) && $old_col['auto_increment']) $new_col['extra'] = 'auto_increment';
+		if(isset($old_col['key'])) $new_col['key'] = $old_col['key'];
 		if(isset($old_col['comment'])){
 			$new_col['comment'] = $old_col['comment'];
 			$len = strlen($new_col['comment']);
@@ -220,6 +221,7 @@ class Format {
 		if(isset($col['default'])) $def .= " DEFAULT $col[default]";
 		if(isset($col['on_update'])) $def .= " ON UPDATE $col[on_update]";
 		if(isset($col['extra']) && $col['extra'] == 'auto_increment') $def .= ' AUTO_INCREMENT';
+		if(isset($col['key'])) $def .= " $col[key]";
 		if(isset($col['comment'])) $def .= " COMMENT '$col[comment]'";
 		return $def;
 	}
