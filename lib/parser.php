@@ -539,17 +539,40 @@ function statement_grant($stmt){
 	$desc = ['type' => 'not grant/revoke', 'key' => 'unknown_'.rand()];
 	$tokens = preg_split('/(\([^\)]*\))|(\'[^\']+\')|(@)|(`[^`]+`)|(\.)|[\s,]+/', $stmt, 0, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
 	
-	$expect = function($token) use (&$tokens, &$desc){
-		if(!is_array($token)){
-			$token = [$token];
+	$fail = function($msg) use (&$desc, &$tokens){
+		$desc['error'] = $msg;
+		$desc['trace'] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+		$desc['rest'] = '';
+		while(current($tokens) !== false){
+			$desc['rest'] .= current($tokens).' ';
+			next($tokens);
 		}
-		foreach($token as $t){
-			if(match_token($tokens, $t)){
-				return false;
-			}
-		}
-		$desc['expected'] = implode(', ', $token);
 		return $desc;
+	};
+	$expect = function($token, $reason = null) use (&$tokens, $fail){
+		if(match_token($tokens, $token)){
+			return false;
+		} else {
+			if(current($tokens) === false){
+				end($tokens);
+			}
+			$prev = implode('',array_reverse([prev($tokens),prev($tokens),prev($tokens),prev($tokens),prev($tokens)]));
+			$prev = str_replace("\n","\n  ",$prev);
+			next($tokens);next($tokens);next($tokens);next($tokens);
+			$current = next($tokens);
+			$next = implode('',[next($tokens),next($tokens),next($tokens),next($tokens),next($tokens)]);
+			$context = $prev.$current.$next;
+			$prev_newline = strrpos($prev, "\n");
+			$prev_len = strlen($prev) - ($prev_newline === false ? 0 : $prev_newline+3);
+			$cur_len = $current ? strlen($current) : 1;
+			$msg = "\n  expected ".(is_array($token) ? implode(', ', $token) : $token)." in";
+			$msg .= "\n  ".$context;
+			$msg .= "\n  ".str_repeat(' ', $prev_len).str_repeat('^', $cur_len);
+			if(!empty($reason)){
+				$msg .= "\n  ($reason)";
+			}
+			return $fail($msg);
+		}
 	};
 	$pop = function() use (&$tokens){
 		$token = current($tokens);
@@ -583,11 +606,15 @@ function statement_grant($stmt){
 
 	if($object_type = match_token($tokens, ['TABLE','FUNCTION','PROCEDURE'])) $desc['object_type'] = $object_type;
 
-	$desc['database'] = $pop();
-	if($desc['database'][0] != '`') $desc['database'] = '`'.$desc['database'].'`';
-	if($e = $expect('.')) return $e;
-	$desc['table'] = $pop();
-	if($desc['table'][0] != '`' && $desc['table'] != '*') $desc['table'] = '`'.$desc['table'].'`';
+	$first_identifier = $pop();
+	if($first_identifier[0] != '`') $first_identifier = '`'.$first_identifier.'`';
+	if(match_token($tokens, '.')){
+		$desc['database'] = $first_identifier;
+		$desc['table'] = $pop();
+		if($desc['table'][0] != '`' && $desc['table'] != '*') $desc['table'] = '`'.$desc['table'].'`';
+	} else {
+		$desc['table'] = $first_identifier;
+	}
 
 	if($desc['type'] == 'revoke'){
 		if($e = $expect('FROM')) return $e;
@@ -597,15 +624,15 @@ function statement_grant($stmt){
 
 	$desc['user'] = $pop();
 	if($desc['user'][0]=="'") $desc['user'] = str_replace("'", "`", $desc['user']);
+	elseif($desc['user'][0] != '`') $desc['user'] = '`'.$desc['user'].'`';
 	if($e = $expect('@')) return $e;
 	$host = $pop();
 	if($host[0]=="'") $host = str_replace("'", "`", $host);
-	//TODO: re-support ignore host?
-	//if(!isset($config['ignore_host']) || !$config['ignore_host']) $desc['user'] .= '@'.$host;
+	elseif($host[0] != '`') $host = '`'.$host.'`';
 	$desc['user'] .= '@'.$host;
 	
 
-	$desc['key'] = $desc['type'].':'.$desc['user'].':'.$desc['database'].'.'.$desc['table'];
+	$desc['key'] = $desc['type'].':'.$desc['user'].':'.($desc['database']??'*').'.'.$desc['table'];
 	$desc = \Description::from_array($desc);
 	return $desc;
 }

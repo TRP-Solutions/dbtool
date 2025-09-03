@@ -23,7 +23,7 @@ class Description implements ArrayAccess, JsonSerializable {
 	}
 
 	public static function from_array($arr){
-		return new Self('grant',$arr['user'],$arr['table'],$arr['database'],$arr['priv_types']);
+		return new Self($arr['type'],$arr['user']??null,$arr['table'],$arr['database']??null,$arr['priv_types']);
 	}
 
 	public static function merge($d1, $d2){
@@ -61,7 +61,7 @@ class Description implements ArrayAccess, JsonSerializable {
 	private $key, $type, $user, $table, $database, $priv_types, $original_priv_types;
 
 	private function __construct($type, $user, $table, $database, $priv_types){
-		if($user[0]=="'") $user = str_replace("'", "`", $user);
+		if(isset($user) && $user[0]=="'") $user = str_replace("'", "`", $user);
 		$database = self::quote_id($database);
 		$table = self::quote_id($table);
 		$this->key = self::build_grant_key($user,$database,$table);
@@ -237,7 +237,6 @@ class Description implements ArrayAccess, JsonSerializable {
 			case 'table': return $this->table;
 			case 'database': return $this->database;
 			case 'priv_types': return $this->priv_types;
-			default: return null;
 		}
 	}
 

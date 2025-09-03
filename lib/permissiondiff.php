@@ -10,6 +10,7 @@ require_once __DIR__.'/description.php';
 class Permissiondiff {
 	static private $file_schema_permissions = [], $db_schema_permissions = [], $schema_changed = [];
 	private $key, $db_stmt, $file_stmt, $filenames = [], $diff_calculated = true, $grant, $revoke, $schema_change_version = 0, $schema_key;
+	private $errors = [];
 	public $is_merged = false, $merge_error = null;
 
 	public function __construct($key){
@@ -35,6 +36,18 @@ class Permissiondiff {
 	}
 
 	public function from_file($stmt, $filename){
+		if(isset($stmt['error'])){
+			$database = $stmt['database'] ?? 'NULL';
+			$table = $stmt['table'] ?? 'NULL';
+			$this->errors[] = ['errno'=>1,'error'=>"Parse Error in file \"$filename\" permission in database $database on table $table."];
+			return;
+		}
+		if($stmt['type'] == 'revoke'){
+			$database = $stmt['database'] ?? 'NULL';
+			$table = $stmt['table'] ?? 'NULL';
+			$this->errors[] = ['errno'=>7,'error'=>"Ignored REVOKE PERMISSION in file \"$filename\" in database $database on table $table."];
+			return;
+		}
 		if(isset($this->file_stmt)){
 			$this->file_stmt = Description::merge($this->file_stmt, $stmt);
 			$this->is_merged = true;
@@ -68,6 +81,10 @@ class Permissiondiff {
 		return $this->file_stmts;
 	}
 
+	public function get_errors(){
+		return $this->errors;
+	}
+
 	private function schema_key(){
 		if(!isset($this->schema_key)){
 			if(isset($this->file_stmt)){
@@ -77,7 +94,8 @@ class Permissiondiff {
 			} else {
 				return;
 			}
-			$this->schema_key = "schema:$stmt[user]:$stmt[database]";
+			$user = $stmt['user'] ?? 'NULL';
+			$this->schema_key = "schema:$user:$stmt[database]";
 		}
 		return $this->schema_key;
 	}
@@ -118,7 +136,7 @@ class Permissiondiff {
 			$this->revoke = empty($db['priv_types']) ? null : $db;
 			$this->diff_calculated = true;
 			return;
-		} elseif(!isset($db)){
+		} elseif(!isset($db) && $file['type']=='grant'){
 			$this->grant = empty($file['priv_types']) ? null : $file;
 			$this->revoke = null;
 			$this->diff_calculated = true;

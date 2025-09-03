@@ -48,9 +48,13 @@ class Tablediff {
 				$is_grant = $obj['type'] == 'grant' || $obj['type'] == 'revoke';
 				if($is_grant){
 					self::file_statement($obj, $sourcename);
-					if(!in_array($obj['user'], $users)) $users[] = $obj['user'];
-					$pairkey = $obj['database'].':'.$obj['user'];
-					$user_filter[$pairkey] = true;
+					if(!empty($obj['user'])){
+						if(!in_array($obj['user'], $users)){
+							$users[] = $obj['user'];
+						}
+						$pairkey = $obj['database'].':'.$obj['user'];
+						$user_filter[$pairkey] = true;
+					}
 				} elseif($obj['type'] == 'table'){
 					if($database_missing){
 						if(!isset(self::$database_error)){
@@ -324,7 +328,7 @@ class Tablediff {
 				$diff->definition = new Definitiondiff($name);
 			}
 			$diff->definition->from_file($stmt, $sourcename);
-		} elseif($stmt['type'] == 'grant'){
+		} elseif($stmt['type'] == 'grant' || $stmt['type'] == 'revoke'){
 			$key = $stmt['key'];
 			if(!isset($diff->permissions[$key])){
 				$diff->permissions[$key] = new Permissiondiff($key);
@@ -346,7 +350,7 @@ class Tablediff {
 				$diff->definition = new Definitiondiff($name);
 			}
 			$diff->definition->from_database($stmt);
-		} elseif($stmt['type'] == 'grant'){
+		} elseif($stmt['type'] == 'grant' || $stmt['type'] == 'revoke'){
 			$key = $stmt['key'];
 			if(!isset($diff->permissions[$key])){
 				$diff->permissions[$key] = new Permissiondiff($key);
@@ -369,13 +373,9 @@ class Tablediff {
 		} else {
 			$database = Config::get('database');
 		}
-		if($stmt['type'] == 'grant'){
+		if($stmt['type'] == 'grant' || $stmt['type'] == 'revoke'){
 			$table = preg_replace('/^`([^`]*)`$/','$1',$stmt['table']);
 		} else {
-			if(!isset($stmt['name'])){
-				debug($stmt);
-			}
-			
 			$table = $stmt['name'];
 		}
 		return $database.'.'.$table;
@@ -392,6 +392,10 @@ class Tablediff {
 			}
 		}
 		foreach($this->permissions as $key => $statement){
+			$errors = $statement->get_errors();
+			if(!empty($errors)){
+				$this->errors = array_merge($this->errors, $errors);
+			}
 			if(isset($statement->merge_error)){
 				$this->errors[] = ['errno'=>5,'error'=>'File parse conflict: '.$statement->merge_error];
 				$i = 1;
