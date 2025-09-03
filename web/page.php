@@ -179,6 +179,10 @@ class Page {
 		}
 	}
 
+	public static function onload($javascript){
+		self::$body->at(['onload'=>$javascript], true);
+	}
+
 	public static function flush(){
 		self::init();
 		echo self::$output;

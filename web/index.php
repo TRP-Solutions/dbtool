@@ -222,6 +222,10 @@ function display_result($obj){
 		}
 	};
 
+	if(!empty($_POST)){
+		Page::onload("history.replaceState(null,'');");
+	}
+
 	$is_executed = false;
 	if(isset($_POST['execute_part'])){
 		$execute = explode(':',$_POST['execute_part']);
