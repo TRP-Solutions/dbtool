@@ -21,7 +21,7 @@ class Tablediff {
 	const ALTER_USER = 0b1000000;
 	const DROP_USER = 0b10000000;
 
-	static private $tables = [], $users = [], $database_error, $skipped_statements = 0;
+	static private $tables = [], $users = [], $missing_users = [], $database_error, $skipped_statements = 0;
 
 	private $name, $permissions = [], $definition = null,
 		$sources = [],
@@ -77,6 +77,7 @@ class Tablediff {
 	static public function reset(){
 		self::$tables = [];
 		self::$users = [];
+		self::$missing_users = [];
 		self::$database_error = null;
 		self::$skipped_statements = 0;
 		Definitiondiff::reset();
@@ -101,6 +102,11 @@ class Tablediff {
 
 		if(self::$database_error){
 			$result[] = ['type'=>'error','error'=>['errno'=>4,'error'=>"Database missing. ".self::$skipped_statements." statement(s) skipped."]];
+		}
+		if(!empty(self::$missing_users)){
+			foreach(self::$missing_users as $user){
+				$result[] = ['type'=>'error','error'=>['errno'=>6,'error'=>"User not found ($user)."]];
+			}
 		}
 
 		$mode = self::read_mode();
@@ -254,13 +260,19 @@ class Tablediff {
 				self::merge_into_grants($grants, $desc);
 			}
 			foreach($users as $user){
-				$re1 = "^[']([^']*)['](?:@['][^']+['])?$";
-				$re2 = "^[`]([^`]*)[`](?:@[`][^`]+[`])?$";
+				$re1 = "^[']([^']*)['](?:@[']([^'])+['])?$";
+				$re2 = "^[`]([^`]*)[`](?:@[`]([^`]+)[`])?$";
 				$re = "/(?:$re1)|(?:$re2)/";
 				if(preg_match($re, $user, $matches)){
-					$username = empty($matches[1]) ? $matches[2] : $matches[1];
-					$result = DB::sql("SELECT 1 FROM mysql.user WHERE user='$username'");
+					$username = empty($matches[1]) ? $matches[3] : $matches[1];
+					$host = empty($matches[2]) ? $matches[4] : $matches[2];
+					$sql = "SELECT 1 FROM mysql.user WHERE user='$username'";
+					if(!empty($host)){
+						$sql .= " AND host='$host'";
+					}
+					$result = DB::sql($sql);
 					if(!$result || !$result->num_rows){
+						self::$missing_users[] = $user;
 						continue;
 					}
 					$result = DB::sql("SHOW GRANTS FOR $user");
