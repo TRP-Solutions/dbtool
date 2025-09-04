@@ -112,6 +112,9 @@ class DB {
 	private $mysqli;
 
 	private function __construct(){
+		if(!class_exists('\mysqli',false)){
+			throw new \Exception('No MySQLi module found.');
+		}
 		$host = Config::get('host');
 		if(!is_string($host)) $host = 'localhost';
 		$username = Config::get('user');

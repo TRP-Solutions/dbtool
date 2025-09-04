@@ -69,7 +69,11 @@ if(isset($_GET['config']) && isset($name_to_file[$_GET['config']])){
 		Page::error('Loading error: '.$error);
 		abort();
 	}
-	load_and_run($config, dirname($path));
+	try {
+		load_and_run($config, dirname($path));
+	} catch (\Exception $e){
+		Page::error('Error: '.$e->getMessage());
+	}
 }
 
 abort();
