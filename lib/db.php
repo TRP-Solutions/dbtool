@@ -16,7 +16,11 @@ class DB {
 
 	public static function login(){
 		if(!isset(self::$instance)){
-			self::$instance = new DB();
+			try {
+				self::$instance = new DB();
+			} catch(\mysqli_sql_exception $e){
+				self::msg('error', 'Exception when connecting to database: '.$e->getMessage());
+			}
 		}
 		return self::$isloggedin;
 	}
@@ -29,7 +33,12 @@ class DB {
 
 	public static function get(){
 		if(!isset(self::$instance)){
-			self::$instance = new DB();
+			try {
+				self::$instance = new DB();
+			} catch(\mysqli_sql_exception $e){
+				self::msg('error', 'Exception when connecting to database: '.$e->getMessage());
+				return null;
+			}
 		}
 		return self::$instance->mysqli;
 	}
@@ -110,10 +119,7 @@ class DB {
 		$password = Config::get('password');
 		if(!is_string($password)) $password = null;
 		if(isset($username) && isset($password)){
-			$error_level = error_reporting(0);
 			$mysqli = new mysqli($host, $username, $password);
-			error_reporting($error_level);
-			
 			if(!$mysqli->connect_error){
 				self::$isloggedin = true;
 			}
