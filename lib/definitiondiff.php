@@ -530,6 +530,9 @@ class Definitiondiff {
 				$query .= "KEY ";
 				if(isset($diff['t2']['name'])) $query .= '`'.$diff['t2']['name'].'` ';
 				$query .= '(`'.implode('`,`',$diff['t2']['cols']).'`)';
+				if(isset($diff['t2']['index_using'])){
+					$query .= ' USING '.$diff['t2']['index_using'];
+				}
 				if(isset($diff['t2']['index_reference_table_quoted'])){
 					$query .= ' REFERENCES '.$diff['t2']['index_reference_table_quoted'];
 					$query .= '(`'.implode('`,`',$diff['t2']['refcols']).'`)';

@@ -146,7 +146,8 @@ class Format {
 					'location'=> $source=='t1' ? "Database" : "Schemafile",
 					'keyname'=> $keyname,
 					'columns'=> implode(', ', $row['cols']),
-					'non_unique'=> isset($row['non_unique']) ? $row['non_unique'] : ''
+					'non_unique'=> isset($row['non_unique']) ? $row['non_unique'] : '',
+					'using' => $row['index_using'] ?? '',
 				], 'class' => self::diff_class($diff)];
 			}
 		}

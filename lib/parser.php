@@ -413,6 +413,9 @@ function statement_table($stmt){
 				if($e = $optional_reference_option($coldesc, 'index_on_delete','DELETE')) return $e;
 				if($e = $optional_reference_option($coldesc, 'index_on_update','UPDATE')) return $e;
 			}
+			// index options
+			// TODO: implement any order support for KEY_BLOCK_SIZE, WITH PARSER, COMMENT, VISIBLE, INVISIBLE, ENGINE_ATTRIBUTE, SECONDARY_ENGINE_ATTRIBUTE
+			if($e = $index_type($coldesc)) return $e;
 		} else {
 			$coldesc['type'] = 'column';
 			if($e = $identifier($coldesc['name'])) return $e;
