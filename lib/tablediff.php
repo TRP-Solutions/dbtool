@@ -107,11 +107,6 @@ class Tablediff {
 		if(self::$database_error){
 			$result[] = ['type'=>'error','error'=>['errno'=>4,'error'=>"Database missing. ".self::$skipped_statements." statement(s) skipped."]];
 		}
-		if(!empty(self::$missing_users)){
-			foreach(self::$missing_users as $user){
-				$result[] = ['type'=>'error','error'=>['errno'=>6,'error'=>"User not found ($user)."]];
-			}
-		}
 
 		$mode = self::read_mode();
 		$create = (bool) ($mode & self::CREATE);
@@ -123,6 +118,7 @@ class Tablediff {
 		$alter_user = (bool) ($mode & self::ALTER_USER);
 		$drop_user = (bool) ($mode & self::DROP_USER);
 
+		$creating_users = [];
 		if($create_user || $alter_user || $drop_user){
 			foreach(self::$users as $name => $user){
 				if($alter_user){
@@ -135,6 +131,7 @@ class Tablediff {
 				if($create_user){
 					$uc_result = $user->get_create();
 					if(isset($uc_result)){
+						$creating_users[] = self::normalise_user(user: $name);
 						$result[] = $uc_result;
 						continue;
 					}
@@ -148,6 +145,14 @@ class Tablediff {
 				}
 			}
 		}
+
+		$missing_users = array_diff(self::$missing_users, $creating_users);
+		if(!empty($missing_users)){
+			foreach($missing_users as $user){
+				$result[] = ['type'=>'error','error'=>['errno'=>6,'error'=>"User not found ($user)"]];
+			}
+		}
+
 		$create_database_sql = self::load_db_tables();
 		if(isset($create_database_sql)){
 			$result[] = ['type'=>'create_database','sql'=>[$create_database_sql]];
@@ -264,19 +269,15 @@ class Tablediff {
 				self::merge_into_grants($grants, $desc);
 			}
 			foreach($users as $user){
-				$re1 = "^[']([^']*)['](?:@[']([^'])+['])?$";
-				$re2 = "^[`]([^`]*)[`](?:@[`]([^`]+)[`])?$";
-				$re = "/(?:$re1)|(?:$re2)/";
-				if(preg_match($re, $user, $matches)){
-					$username = empty($matches[1]) ? $matches[3] : $matches[1];
-					$host = empty($matches[2]) ? $matches[4] : $matches[2];
+				[$username, $host] = self::parse_user($user);
+				if(!empty($user)){
 					$sql = "SELECT 1 FROM mysql.user WHERE user='$username'";
 					if(!empty($host)){
 						$sql .= " AND host='$host'";
 					}
 					$result = DB::sql($sql);
 					if(!$result || !$result->num_rows){
-						self::$missing_users[] = $user;
+						self::$missing_users[] = self::normalise_user($username, $host);
 						continue;
 					}
 					$result = DB::sql("SHOW GRANTS FOR $user");
@@ -293,6 +294,33 @@ class Tablediff {
 			}
 		}
 		return $grants;
+	}
+
+	static private function parse_user(string $user){
+		$re1 = "^[']([^']*)['](?:@[']([^']+)['])?$";
+		$re2 = "^[`]([^`]*)[`](?:@[`]([^`]+)[`])?$";
+		$re = "/(?:$re1)|(?:$re2)/";
+		if(preg_match($re, $user, $matches)){
+			$username = empty($matches[1]) ? $matches[3] : $matches[1];
+			$host = empty($matches[2]) ? $matches[4] : $matches[2];
+			return [$username, $host];
+		} else {
+			return [null,null];
+		}
+	}
+
+	static private function normalise_user(?string $username = null, ?string $host = null, ?string $user = null){
+		if(isset($user)){
+			[$username,$host] = self::parse_user($user);
+		}
+		if(empty($username)){
+			throw new \Exception('Failed normalising user');
+		}
+		$normalised_user = "`$username`";
+		if(!empty($host)){
+			$normalised_user .= ".`$host`";
+		}
+		return $normalised_user;
 	}
 
 	static private function ignore_host(){
