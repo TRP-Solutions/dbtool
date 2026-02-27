@@ -38,7 +38,7 @@ class Statement implements jsonSerializable {
 		private $column_name = null,
 		private $column_diff = null
 	){
-		$this->table_identifier = isset($database) ? "`$database`.`$table`" : `$table`;
+		$this->table_identifier = isset($database) ? "`$database`.`$table`" : "`$table`";
 		$this->use_guards = !\Config::get('ignore-dataloss');
 		if(!$this->use_guards || $type == StatementType::AddColumn || $this->is_safe_modify()){
 			$this->guard_state = StatementGuard::Safe;
